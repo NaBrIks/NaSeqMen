@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NaSeqMen</title>
+<link rel="stylesheet" href="technical-shell/icons/tabler-icons.css"><link rel="stylesheet" href="technical-shell/themes.css"><link rel="stylesheet" href="technical-shell/shell.css">
+<link rel="stylesheet" href="app.css"><link rel="stylesheet" href="graph.css"><link rel="stylesheet" href="forms.css"><link rel="stylesheet" href="shell-adapter.css">
+<script type="module" src="app.js"></script></head>
+<body><div id="shell" class="lu-shell" data-theme="cream" data-density="nano" data-panel-scheme="compact" data-tooltips="true">
+<header class="shell-topbar">
+  <button id="shell-menu-toggle" type="button" data-i18n-label="ui.collapse_expand_navigation" data-i18n-tooltip="ui.collapse_expand_navigation"><i class="ti ti-menu-2" aria-hidden="true"></i></button>
+  <strong class="shell-brand"><i class="ti ti-bolt" aria-hidden="true"></i>NaSeqMen</strong><span class="shell-version">α HTML</span>
+  <div class="shell-stats"><span id="connection-state" data-i18n-tooltip="ui.connection_between_this_editor_and_the_executor_the"></span></div>
+  <details id="appearance" class="appearance"><summary id="appearance-summary"><i class="ti ti-palette" aria-hidden="true"></i> <span id="appearance-label"></span></summary><div id="appearance-menu" class="appearance-menu"></div></details>
+  <button id="shell-language" type="button" data-i18n-tooltip="ui.english" data-i18n-label="ui.english">EN</button>
+</header>
+<div class="shell-body">
+<aside class="shell-sidebar"><nav id="shell-navigation" data-i18n-label="ui.sections">
+  <span class="nav-caption" data-i18n="ui.sections"></span>
+  <div class="nav-group"><button type="button" class="nav-link active selected" data-tab="graph" data-i18n-label="ui.graph" data-i18n-tooltip="ui.graph" aria-current="page"><i class="ti ti-arrows-exchange" aria-hidden="true"></i><span data-i18n="ui.graph"></span></button></div>
+  <div class="nav-group"><button type="button" class="nav-link" data-tab="devices" data-i18n-label="ui.devices_and_buttons" data-i18n-tooltip="ui.devices_and_buttons"><i class="ti ti-key" aria-hidden="true"></i><span data-i18n="ui.devices_and_buttons"></span></button></div>
+  <div class="nav-group"><button type="button" class="nav-link" data-tab="connections" data-i18n-label="ui.connections" data-i18n-tooltip="ui.connections"><i class="ti ti-plug" aria-hidden="true"></i><span data-i18n="ui.connections"></span></button></div>
+  <div class="settings-menu"><button type="button" class="nav-link" data-tab="settings" data-i18n-label="ui.settings" data-i18n-tooltip="ui.settings"><i class="ti ti-settings" aria-hidden="true"></i><span data-i18n="ui.settings"></span></button><div id="settings-connections" class="nav-children"></div></div>
+</nav></aside>
+<div class="shell-content naseq-workspace">
+  <div class="toolbar executor-toolbar">
+    <button id="connect" data-i18n-tooltip="ui.load_the_configuration_and_subscribe_to_new_diagnostic"><i class="ti ti-plug" aria-hidden="true"></i><span data-i18n="ui.connect"></span></button>
+    <button id="reload" data-i18n-tooltip="ui.reload_settings_and_devices_this_does_not_run"><i class="ti ti-refresh" aria-hidden="true"></i><span data-i18n="ui.refresh"></span></button>
+    <button id="output-modes" type="button" aria-haspopup="dialog" data-i18n-tooltip="outputs.buttonHelp" disabled><i class="ti ti-toggle-right" aria-hidden="true"></i><span data-i18n="outputs.title"></span></button>
+    <button id="validate" data-i18n-tooltip="ui.validate_the_graph_and_compile_c_without_changing"><i class="ti ti-list-check" aria-hidden="true"></i><span data-i18n="ui.validate_graph"></span></button>
+  </div>
+  <main id="workspace-pages">
+    <section id="tab-graph" class="page">
+      <div class="toolbar"><button id="add-node"><i class="ti ti-plus" aria-hidden="true"></i><span data-i18n="ui.node_2"></span></button><button id="edit-node"><i class="ti ti-pencil" aria-hidden="true"></i><span data-i18n="ui.edit"></span></button><button id="delete-node"><i class="ti ti-trash" aria-hidden="true"></i><span data-i18n="ui.delete_node"></span></button><button id="delete-link" data-i18n-tooltip="ui.delete_link" data-i18n-label="ui.delete_link" disabled><i class="ti ti-unlink" aria-hidden="true"></i><span data-i18n="ui.delete_link"></span></button><button id="links"><i class="ti ti-link" aria-hidden="true"></i><span data-i18n="ui.links"></span></button><button id="inject" data-i18n-tooltip="ui.inject_a_synthetic_event_into_the_graph_output"><i class="ti ti-player-play" aria-hidden="true"></i><span data-i18n="ui.inject_event"></span></button><label><span data-i18n="ui.zoom"></span> <input id="zoom" type="range" min="0.65" max="1.6" step="0.05" value="1" data-i18n-label="ui.zoom"></label><span id="selected-node" class="muted truncate"></span><button id="graph-help" class="icon-only push-right" data-i18n-label="ui.details_graph" data-i18n-tooltip="ui.details_graph"><i class="ti ti-list-details" aria-hidden="true"></i></button></div>
+      <div id="graph" class="graph-host workspace-pane"></div>
+    </section>
+    <section id="tab-devices" class="page" hidden>
+      <div class="toolbar"><button id="refresh-devices"><i class="ti ti-refresh" aria-hidden="true"></i><span data-i18n="ui.refresh_devices"></span></button><span class="muted truncate" data-i18n="ui.enable_discovery_in_the_required_interface_rows"></span></div>
+      <div id="devices" class="table-scroll devices-table workspace-pane" tabindex="0" data-i18n-label="ui.devices"></div>
+      <div class="toolbar"><strong data-i18n="ui.discovered_buttons"></strong><button id="inputs-help" class="icon-only" data-i18n-label="ui.details_discovered_buttons" data-i18n-tooltip="ui.details_discovered_buttons"><i class="ti ti-list-details" aria-hidden="true"></i></button><button id="clear-inputs" class="push-right" data-i18n="ui.clear"></button></div>
+      <div id="inputs" class="input-panel workspace-pane" tabindex="0" data-i18n-label="ui.discovered_buttons"><span class="empty" data-i18n="ui.enable_for_a_mouse_or_keyboard_then_press"></span></div>
+      <div id="mappings" class="table-scroll mappings-table workspace-pane" tabindex="0" data-i18n-label="ui.mappings"></div>
+    </section>
+    <section id="tab-connections" class="page" hidden><div class="toolbar"><button id="add-connection"><i class="ti ti-plus" aria-hidden="true"></i><span data-i18n="ui.connection"></span></button><span class="muted truncate" data-i18n="ui.one_connection_is_shared_by_inputs_and_outputs"></span></div><div id="connections" class="table-scroll fill workspace-pane" tabindex="0" data-i18n-label="ui.connections"></div></section>
+    <section id="tab-settings" class="page settings-page" hidden><div id="settings-overview"><div class="page-header"><h2 data-i18n="ui.interface_settings"></h2><button id="open-appearance"><i class="ti ti-palette" aria-hidden="true"></i><span data-i18n="ui.open_appearance_menu"></span></button></div><p data-i18n="ui.change_colours_density_panel_borders_and_tooltips_in"></p><p data-i18n="ui.connection_settings_are_available_in_the_child_items"></p></div><div id="connection-settings"></div></section>
+  </main>
+  <section id="diagnostics"><div class="toolbar"><button id="toggle-log" aria-expanded="true" data-i18n-tooltip="ui.expand_or_collapse_detailed_event_traces">▾ <span data-i18n="ui.live_trace"></span></button><button id="log-help" class="icon-only" data-i18n-label="ui.details_live_trace" data-i18n-tooltip="ui.details_live_trace"><i class="ti ti-list-details" aria-hidden="true"></i></button><button id="clear-log" class="push-right" data-i18n="ui.clear_view"></button></div><div id="logs" class="table-scroll log-table workspace-pane" tabindex="0" data-i18n-label="ui.event_log"></div></section>
+  <footer class="workspace-footer"><button id="status" class="status" data-i18n-tooltip="ui.last_operation_result_click_for_full_details"></button><span data-i18n="input.capture.footer"></span></footer>
+</div></div></div>
+</body></html>

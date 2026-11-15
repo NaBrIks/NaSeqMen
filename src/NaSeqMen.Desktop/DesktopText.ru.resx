@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="loading" xml:space="preserve"><value>Открытие NaSeqMen…</value></data>
+  <data name="retry" xml:space="preserve"><value>Повторить</value></data>
+  <data name="details" xml:space="preserve"><value>Подробности</value></data>
+  <data name="navigationFailed" xml:space="preserve"><value>Не удалось открыть редактор: {0}</value></data>
+  <data name="runtimeMissing" xml:space="preserve"><value>Не найден Microsoft Edge WebView2 Runtime. Установите его и нажмите «Повторить».</value></data>
+  <data name="startupFailed" xml:space="preserve"><value>Не удалось открыть NaSeqMen: {0}</value></data>
+  <data name="detailsTitle" xml:space="preserve"><value>NaSeqMen — подробности запуска</value></data>
+  <data name="externalLinkFailed" xml:space="preserve"><value>NaSeqMen — не удалось открыть ссылку</value></data>
+  <data name="executorMissing" xml:space="preserve"><value>Исполнитель не собран. Выполните scripts/build.ps1.</value></data>
+  <data name="executorStartFailed" xml:space="preserve"><value>Не удалось запустить исполнитель.</value></data>
+  <data name="executorExited" xml:space="preserve"><value>Исполнитель завершился с кодом {0}.</value></data>
+  <data name="executorTimeout" xml:space="preserve"><value>Исполнитель не подтвердил готовность. Он не был остановлен; повторите подключение.</value></data>
+  <data name="portHttpError" xml:space="preserve"><value>Порт {0} занят: HTTP {1}.</value></data>
+  <data name="portUnknownService" xml:space="preserve"><value>На порту {0} отвечает другая программа.</value></data>
+  <data name="wrongExecutor" xml:space="preserve"><value>Существующий HTML-сервер подключён к другому исполнителю.</value></data>
+  <data name="portNotReady" xml:space="preserve"><value>На порту {0} есть слушатель, но он не подтвердил готовность.</value></data>
+  <data name="portInvalidResponse" xml:space="preserve"><value>На порту {0} получен неизвестный ответ.</value></data>
+</root>

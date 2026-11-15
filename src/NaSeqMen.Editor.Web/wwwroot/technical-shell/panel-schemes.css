@@ -1,0 +1,29 @@
+/* Panel framing uses the WebDebug variants and keeps the base spacing and palette independent. */
+.lu-shell:is([data-panel-scheme="rounded"], [data-panel-scheme="square"]) {
+    --panel-gap:8px;
+    --panel-radius:8px;
+    --panel-shadow:2px 3px 4px rgb(0 0 0 / .16);
+}
+.lu-shell[data-panel-scheme="square"] { --panel-radius:0px; }
+.lu-shell:is([data-theme="dark"], [data-theme="emerald"]):is([data-panel-scheme="rounded"], [data-panel-scheme="square"]) {
+    --panel-shadow:2px 3px 4px rgb(0 0 0 / .32);
+}
+
+.lu-shell:is([data-panel-scheme="rounded"], [data-panel-scheme="square"]) :is(.panel, .workspace-pane) {
+    border:1px solid var(--lu-border);
+    border-radius:var(--panel-radius);
+    background:var(--lu-surface);
+    padding:1px;
+    box-shadow:var(--panel-shadow);
+}
+.lu-shell:is([data-panel-scheme="rounded"], [data-panel-scheme="square"]) .panel { margin-bottom:var(--panel-gap); }
+.lu-shell:is([data-panel-scheme="rounded"], [data-panel-scheme="square"]) .workspace-columns {
+    gap:var(--panel-gap);
+    padding:0 6px 7px 0;
+}
+
+.panel-scheme-sample { display:inline-flex; vertical-align:middle; width:20px; height:14px; gap:3px; }
+.panel-scheme-sample > span { flex:1; border:1px solid currentColor; }
+.panel-scheme-sample[data-sample="compact"] { gap:0; }
+.panel-scheme-sample[data-sample="compact"] > span + span { border-left:0; }
+.panel-scheme-sample[data-sample="rounded"] > span { border-radius:3px; }

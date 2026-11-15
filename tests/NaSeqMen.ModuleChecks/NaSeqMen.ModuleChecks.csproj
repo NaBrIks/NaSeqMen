@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../modules/NaSeqMen.Obs/NaSeqMen.Obs.csproj" />
+    <ProjectReference Include="../../modules/NaSeqMen.Input.Windows/NaSeqMen.Input.Windows.csproj" />
+    <ProjectReference Include="../../modules/NaSeqMen.Desktop.Windows/NaSeqMen.Desktop.Windows.csproj" />
+  </ItemGroup>
+</Project>

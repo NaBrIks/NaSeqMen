@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "dryRun": true,
+  "connections": [
+    { "id": "default-local", "name": "Local devices — observation", "module": "windows.input", "enabled": true, "settings": { "includeMovement": "false" } },
+    { "id": "default-desktop", "name": "Windows", "module": "windows.desktop", "enabled": true, "settings": {} }
+  ],
+  "nodes": [
+    { "id": "demo-input", "name": "Demo event", "kind": "source", "module": "test", "order": 0, "settings": { "control": "demo" } },
+    { "id": "demo-down", "name": "Press only", "kind": "condition", "operation": "equals", "order": 0, "settings": { "field": "phase", "value": "down" } },
+    { "id": "demo-scale", "name": "Multiply by 2", "kind": "transform", "operation": "scale", "order": 0, "settings": { "factor": "2", "offset": "0" } },
+    { "id": "demo-copy", "name": "Copy — dry-run output", "kind": "action", "module": "windows.desktop", "connectionId": "default-desktop", "operation": "chord", "order": 0, "settings": { "keys": "Ctrl+C" } },
+    { "id": "script-input", "name": "C# demo input", "kind": "source", "module": "test", "order": 1, "settings": { "control": "script" } },
+    { "id": "script-code", "name": "C#: transform text", "kind": "script", "order": 1, "settings": { "code": "Context.Trace(\"Script received: \" + Input.Value); return Input with { Value = Input.Value.ToUpperInvariant(), ValueType = \"text\" };" } },
+    { "id": "script-output", "name": "Demo Enter", "kind": "action", "module": "windows.desktop", "connectionId": "default-desktop", "operation": "key", "order": 1, "settings": { "key": "Enter", "phase": "press" } }
+  ],
+  "edges": [
+    { "from": "demo-input", "to": "demo-down" },
+    { "from": "demo-down", "to": "demo-scale" },
+    { "from": "demo-scale", "to": "demo-copy" },
+    { "from": "script-input", "to": "script-code" },
+    { "from": "script-code", "to": "script-output" }
+  ],
+  "mappings": []
+}

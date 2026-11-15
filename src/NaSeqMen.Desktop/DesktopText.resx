@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="loading" xml:space="preserve"><value>Opening NaSeqMen…</value></data>
+  <data name="retry" xml:space="preserve"><value>Retry</value></data>
+  <data name="details" xml:space="preserve"><value>Details</value></data>
+  <data name="navigationFailed" xml:space="preserve"><value>Could not open the editor: {0}</value></data>
+  <data name="runtimeMissing" xml:space="preserve"><value>Microsoft Edge WebView2 Runtime was not found. Install it and select Retry.</value></data>
+  <data name="startupFailed" xml:space="preserve"><value>Could not open NaSeqMen: {0}</value></data>
+  <data name="detailsTitle" xml:space="preserve"><value>NaSeqMen — startup details</value></data>
+  <data name="externalLinkFailed" xml:space="preserve"><value>NaSeqMen — could not open link</value></data>
+  <data name="executorMissing" xml:space="preserve"><value>The executor has not been built. Run scripts/build.ps1.</value></data>
+  <data name="executorStartFailed" xml:space="preserve"><value>Could not start the executor.</value></data>
+  <data name="executorExited" xml:space="preserve"><value>The executor exited with code {0}.</value></data>
+  <data name="executorTimeout" xml:space="preserve"><value>The executor did not report ready. It has not been stopped; retry the connection.</value></data>
+  <data name="portHttpError" xml:space="preserve"><value>Port {0} is in use: HTTP {1}.</value></data>
+  <data name="portUnknownService" xml:space="preserve"><value>A different application is responding on port {0}.</value></data>
+  <data name="wrongExecutor" xml:space="preserve"><value>The existing web server is connected to a different executor.</value></data>
+  <data name="portNotReady" xml:space="preserve"><value>Port {0} has a listener, but it did not report ready.</value></data>
+  <data name="portInvalidResponse" xml:space="preserve"><value>An unknown response was received on port {0}.</value></data>
+</root>

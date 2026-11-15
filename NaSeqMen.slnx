@@ -1,0 +1,24 @@
+<Solution>
+  <Folder Name="/modules/">
+    <Project Path="modules/NaSeqMen.Desktop.Windows/NaSeqMen.Desktop.Windows.csproj" />
+    <Project Path="modules/NaSeqMen.Input.Windows/NaSeqMen.Input.Windows.csproj" />
+    <Project Path="modules/NaSeqMen.Obs/NaSeqMen.Obs.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/NaSeqMen.Contracts/NaSeqMen.Contracts.csproj" />
+    <Project Path="src/NaSeqMen.Editor/NaSeqMen.Editor.csproj" />
+    <Project Path="src/NaSeqMen.Editor.Web/NaSeqMen.Editor.Web.csproj" />
+    <Project Path="src/NaSeqMen.Desktop/NaSeqMen.Desktop.csproj" />
+    <Project Path="src/NaSeqMen.Executor/NaSeqMen.Executor.csproj" />
+    <Project Path="src/NaSeqMen.Runtime/NaSeqMen.Runtime.csproj" />
+    <Project Path="src/NaSeqMen.Scripting/NaSeqMen.Scripting.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NaSeqMen.LocalizationChecks/NaSeqMen.LocalizationChecks.csproj" />
+    <Project Path="tests/NaSeqMen.DesktopChecks/NaSeqMen.DesktopChecks.csproj" />
+    <Project Path="tests/NaSeqMen.EditorChecks/NaSeqMen.EditorChecks.csproj" />
+    <Project Path="tests/NaSeqMen.ModuleChecks/NaSeqMen.ModuleChecks.csproj" />
+    <Project Path="tests/NaSeqMen.ProbeModule/NaSeqMen.ProbeModule.csproj" />
+    <Project Path="tests/NaSeqMen.RuntimeChecks/NaSeqMen.RuntimeChecks.csproj" />
+  </Folder>
+</Solution>

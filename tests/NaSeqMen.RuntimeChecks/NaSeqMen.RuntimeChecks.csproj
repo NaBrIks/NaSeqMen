@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net11.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/NaSeqMen.Runtime/NaSeqMen.Runtime.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../modules/NaSeqMen.Desktop.Windows/NaSeqMen.Desktop.Windows.csproj" /></ItemGroup>
+</Project>

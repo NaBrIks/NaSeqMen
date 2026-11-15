@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><UseWindowsForms>true</UseWindowsForms></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/NaSeqMen.Contracts/NaSeqMen.Contracts.csproj" /></ItemGroup>
+</Project>

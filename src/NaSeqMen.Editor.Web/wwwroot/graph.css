@@ -1,0 +1,44 @@
+/* SPDX-License-Identifier: MIT */
+.graph-host { overflow: auto; overscroll-behavior: contain; min-width: 0; min-height: 0; height: 100%; background: var(--lu-bg-canvas); }
+.graph-surface { display: block; font: 13px "Segoe UI", sans-serif; user-select: none; touch-action: none; }
+.graph-lane-background { fill: var(--lu-bg-canvas); stroke: var(--lu-border); stroke-width: 1; }
+.graph-lane-label { fill: var(--lu-text-muted); font-size: 12px; letter-spacing: .35px; pointer-events: none; }
+.graph-divider { stroke: var(--lu-border); stroke-width: 1; }
+.graph-section rect { fill: var(--lu-surface-alt); stroke: var(--lu-border); stroke-width: 1; }
+.graph-section text { fill: var(--lu-text); font-weight: 600; pointer-events: none; }
+.graph-section[role=button] { cursor: pointer; outline: none; }
+.graph-section[role=button]:is(:hover,:focus-visible) rect { stroke: var(--lu-primary); }
+.lu-shell:has(.graph-section[aria-describedby]) .lu-tooltip { pointer-events: none; }
+.graph-node { cursor: pointer; outline: none; }
+.graph-node-box { fill: var(--lu-surface); stroke: var(--lu-border); stroke-width: 1; }
+.graph-node-title { fill: var(--lu-text); pointer-events: none; }
+.graph-node-detail { fill: var(--lu-text-muted); font-size: 12px; pointer-events: none; }
+.graph-disabled .graph-node-box { fill: var(--lu-surface-alt); stroke-dasharray: 3 2; }
+.graph-disabled .graph-node-title { fill: var(--lu-text-subtle); }
+.graph-mode { cursor: pointer; }
+.graph-mode rect { fill: transparent; }
+.graph-mode text { font: 13px tabler-icons; text-anchor: middle; pointer-events: none; fill: var(--lu-success); }
+.graph-mode[data-mode=test] text { fill: var(--lu-warning); }
+.graph-mode[data-mode=off] text { fill: var(--lu-text-subtle); }
+.graph-mode:is(:hover,:focus-visible) rect { stroke: var(--lu-primary); }
+.lu-shell:has(.graph-mode[aria-describedby]) .lu-tooltip { pointer-events: none; }
+.graph-preview-only .graph-node-box { stroke: var(--lu-warning); stroke-dasharray: 4 2; }
+.graph-selected .graph-node-box, .graph-node:focus-visible .graph-node-box { stroke: var(--lu-primary); stroke-width: 2; }
+:is(.graph-node,.graph-destination).graph-active .graph-node-box { stroke: var(--lu-success); stroke-width: 3; }
+.graph-node.graph-failed .graph-node-box { stroke: var(--lu-danger); stroke-width: 3; }
+.graph-node.graph-suppressed .graph-node-box { stroke: var(--lu-warning); stroke-width: 3; stroke-dasharray: 4 2; }
+.graph-wire { fill: none; stroke: var(--lu-text-muted); stroke-width: 1.4; }
+.graph-edge { cursor: pointer; outline: none; }
+.graph-wire-hit { fill: none; stroke: transparent; stroke-width: 7; pointer-events: stroke; }
+.graph-edge:hover .graph-wire, .graph-edge:focus-visible .graph-wire { stroke: var(--lu-primary); stroke-width: 2; }
+.graph-wire.graph-wire-selected { stroke: var(--lu-primary); stroke-width: 3; }
+.graph-wire.graph-active { stroke: var(--lu-success); stroke-width: 3; }
+.graph-delivery-dot { fill: var(--lu-text-muted); }
+.graph-wire-preview { stroke: var(--lu-info); stroke-dasharray: 4 3; pointer-events: none; }
+.graph-wire-preview[hidden] { display: none; }
+.graph-port { cursor: crosshair; outline: none; }
+.graph-port-hit { fill: transparent; stroke: none; }
+.graph-port-dot { fill: var(--lu-primary); stroke: var(--lu-bg-canvas); stroke-width: 1; }
+.graph-port:focus-visible .graph-port-dot, .graph-port:hover .graph-port-dot { fill: var(--lu-surface); stroke: var(--lu-primary); stroke-width: 3; }
+.graph-compatible .graph-port-in .graph-port-dot, .graph-wire-source .graph-port-out .graph-port-dot { fill: var(--lu-success); stroke: var(--lu-success); stroke-width: 3; }
+.graph-empty { fill: var(--lu-text-muted); }
