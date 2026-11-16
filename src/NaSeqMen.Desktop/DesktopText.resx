@@ -21,4 +21,8 @@
   <data name="wrongExecutor" xml:space="preserve"><value>The existing web server is connected to a different executor.</value></data>
   <data name="portNotReady" xml:space="preserve"><value>Port {0} has a listener, but it did not report ready.</value></data>
   <data name="portInvalidResponse" xml:space="preserve"><value>An unknown response was received on port {0}.</value></data>
+  <data name="windowMinimize" xml:space="preserve"><value>Minimize</value></data>
+  <data name="windowMaximize" xml:space="preserve"><value>Maximize</value></data>
+  <data name="windowRestore" xml:space="preserve"><value>Restore</value></data>
+  <data name="windowClose" xml:space="preserve"><value>Close window</value></data>
 </root>

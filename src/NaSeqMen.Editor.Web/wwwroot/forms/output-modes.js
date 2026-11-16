@@ -4,6 +4,7 @@ import { bind, el, modal } from './common.js';
 
 export function renderOutputMode(button, configuration) {
   button.disabled = !configuration;
+  button.setAttribute('aria-pressed', String(!!configuration?.dryRun));
   const enabled = configuration?.nodes.filter(node => node.enabled) ?? [];
   const actions = enabled.filter(node => node.kind === 'action');
   const mode = !configuration ? 'idle' : configuration.dryRun ? 'global'
@@ -16,17 +17,8 @@ export function renderOutputMode(button, configuration) {
 export function editOutputModes(getConfiguration, Table, save) {
   const configuration = getConfiguration();
   const view = modal('outputs.title');
-  const global = el('input');
-  global.id = 'dry-run';
-  global.type = 'checkbox';
-  global.checked = configuration.dryRun;
-  const label = el('label');
-  label.append(global, el('span', '', 'outputs.global'));
-  bind(label, 'data-tooltip', 'ui.dry_run_suppresses_output_through_the_host_api');
-  const toolbar = el('div', 'toolbar');
   const modes = el('div', 'toolbar');
-  toolbar.append(label);
-  view.body.append(toolbar, modes);
+  view.body.append(modes);
 
   const actions = configuration.nodes.filter(node => node.kind === 'action');
   const changed = new Map();
@@ -62,7 +54,6 @@ export function editOutputModes(getConfiguration, Table, save) {
 
   return view.open(async () => {
     const candidate = structuredClone(getConfiguration());
-    if (global.checked !== configuration.dryRun) candidate.dryRun = global.checked;
     for (const node of candidate.nodes) {
       if (node.kind === 'action' && changed.has(node.id)) node.previewOnly = changed.get(node.id);
     }

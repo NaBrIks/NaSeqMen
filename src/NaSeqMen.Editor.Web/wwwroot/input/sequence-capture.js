@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 import { t, onLanguageChange } from '../i18n.js';
+import { keyboardCaptureSource } from './discovery-capture.js';
 
 export class SequenceCapture {
   #listeners = new Set();
+
+  constructor(discovery) { this.discovery = discovery; }
 
   accept(signal) {
     for (const listener of this.#listeners) listener(signal);
@@ -12,6 +15,7 @@ export class SequenceCapture {
     const button = document.createElement('button');
     button.type = 'button';
     const status = document.createElement('span');
+    status.className = 'sequence-capture-status';
     status.setAttribute('aria-live', 'polite');
     container.append(button, status);
     let timer, listener, message = '';
@@ -20,7 +24,10 @@ export class SequenceCapture {
       status.textContent = message ? t(message) : '';
     };
     const stop = key => {
-      this.#listeners.delete(listener);
+      if (listener) {
+        this.#listeners.delete(listener);
+        this.discovery.stopRecording();
+      }
       listener = null;
       clearTimeout(timer);
       message = key;
@@ -28,16 +35,18 @@ export class SequenceCapture {
     };
     const unsubscribe = onLanguageChange(render);
     dialog.addEventListener('close', () => { stop(''); unsubscribe(); }, { once: true });
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       if (listener) { stop(''); return; }
+      const target = endpoint();
+      if (!target.source || !target.connectionId) { stop('forms.capture.chooseSource'); return; }
       const steps = [];
       const held = new Set();
-      message = 'forms.capture.listening';
+      let armed = false;
+      message = 'forms.capture.preparing';
       listener = signal => {
         if (!button.isConnected) { stop(''); return; }
-        const target = endpoint();
-        if (signal.module !== 'windows.input' || signal.source !== target.source ||
-            signal.connectionId !== target.connectionId) return;
+        if (!armed || signal.module !== 'windows.input' || (signal.source !== keyboardCaptureSource &&
+            (signal.source !== target.source || signal.connectionId !== target.connectionId))) return;
         if (signal.control === 'device:connection') { stop('forms.capture.incomplete'); return; }
         if (!signal.control.startsWith('key:')) return;
         if (signal.phase === 'down') {
@@ -51,7 +60,14 @@ export class SequenceCapture {
           stop('forms.capture.complete');
         }
       };
+      const current = listener;
       this.#listeners.add(listener);
+      render();
+      const ready = await this.discovery.startRecording(target.source);
+      if (listener !== current) return;
+      if (!ready) { stop('forms.capture.unavailable'); return; }
+      armed = true;
+      message = 'forms.capture.listening';
       timer = setTimeout(() => stop('forms.capture.incomplete'), 5000);
       render();
     });

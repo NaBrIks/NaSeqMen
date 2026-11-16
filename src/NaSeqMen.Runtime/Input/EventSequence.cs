@@ -3,6 +3,8 @@ using NaSeqMen.Contracts;
 
 namespace NaSeqMen.Runtime;
 
+internal enum EventOutcome { Miss, Pending, Match }
+
 internal sealed class EventSequence
 {
     private readonly Step[] _steps;
@@ -47,30 +49,30 @@ internal sealed class EventSequence
 
     public void Reset() { _next = 0; _lastSignal = null; }
 
-    public bool Accept(Signal signal)
+    public EventOutcome Accept(Signal signal)
     {
-        if (_lastSignal == signal.Id) return false;
+        if (_lastSignal == signal.Id) return EventOutcome.Pending;
         _lastSignal = signal.Id;
         var control = signal.OriginalControl ?? signal.Control;
-        if (!control.StartsWith("key:", StringComparison.Ordinal)) return false;
+        if (!control.StartsWith("key:", StringComparison.Ordinal)) return EventOutcome.Miss;
         if (_next != 0 && (_generation != signal.InputGeneration ||
             signal.Time < _started || signal.Time - _started > _timeout))
             _next = 0;
 
         var step = new Step(control, signal.Phase);
         // A repeat is an extra down for a key already pressed by this match.
-        if (signal.Phase == "down" && LastPhase(control) == "down") return false;
+        if (signal.Phase == "down" && LastPhase(control) == "down") return EventOutcome.Pending;
         if (step != _steps[_next]) _next = 0;
-        if (step != _steps[_next]) return false;
+        if (step != _steps[_next]) return EventOutcome.Miss;
 
         if (_next == 0)
         {
             _started = signal.Time;
             _generation = signal.InputGeneration;
         }
-        if (++_next < _steps.Length) return false;
+        if (++_next < _steps.Length) return EventOutcome.Pending;
         _next = 0;
-        return true;
+        return EventOutcome.Match;
     }
 
     private string? LastPhase(string control)

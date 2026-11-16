@@ -24,7 +24,8 @@
   <div class="toolbar executor-toolbar">
     <button id="connect" data-i18n-tooltip="ui.load_the_configuration_and_subscribe_to_new_diagnostic"><i class="ti ti-plug" aria-hidden="true"></i><span data-i18n="ui.connect"></span></button>
     <button id="reload" data-i18n-tooltip="ui.reload_settings_and_devices_this_does_not_run"><i class="ti ti-refresh" aria-hidden="true"></i><span data-i18n="ui.refresh"></span></button>
-    <button id="output-modes" type="button" aria-haspopup="dialog" data-i18n-tooltip="outputs.buttonHelp" disabled><i class="ti ti-toggle-right" aria-hidden="true"></i><span data-i18n="outputs.title"></span></button>
+    <button id="output-modes" type="button" aria-pressed="false" data-i18n-tooltip="outputs.toggleHelp" disabled><i class="ti ti-toggle-right" aria-hidden="true"></i><span data-i18n="outputs.title"></span></button>
+    <button id="output-settings" class="icon-only" type="button" aria-haspopup="dialog" data-i18n-label="outputs.title" data-i18n-tooltip="outputs.buttonHelp" disabled><i class="ti ti-settings" aria-hidden="true"></i></button>
     <button id="validate" data-i18n-tooltip="ui.validate_the_graph_and_compile_c_without_changing"><i class="ti ti-list-check" aria-hidden="true"></i><span data-i18n="ui.validate_graph"></span></button>
   </div>
   <main id="workspace-pages">
@@ -33,9 +34,9 @@
       <div id="graph" class="graph-host workspace-pane"></div>
     </section>
     <section id="tab-devices" class="page" hidden>
-      <div class="toolbar"><button id="refresh-devices"><i class="ti ti-refresh" aria-hidden="true"></i><span data-i18n="ui.refresh_devices"></span></button><span class="muted truncate" data-i18n="ui.enable_discovery_in_the_required_interface_rows"></span></div>
+      <div class="toolbar"><button id="refresh-devices"><i class="ti ti-refresh" aria-hidden="true"></i><span data-i18n="ui.refresh_devices"></span></button><span id="discovery-guard" role="img" tabindex="0"><i class="ti ti-key" aria-hidden="true"></i></span><span class="muted truncate" data-i18n="ui.enable_discovery_in_the_required_interface_rows"></span></div>
       <div id="devices" class="table-scroll devices-table workspace-pane" tabindex="0" data-i18n-label="ui.devices"></div>
-      <div class="toolbar"><strong data-i18n="ui.discovered_buttons"></strong><button id="inputs-help" class="icon-only" data-i18n-label="ui.details_discovered_buttons" data-i18n-tooltip="ui.details_discovered_buttons"><i class="ti ti-list-details" aria-hidden="true"></i></button><button id="clear-inputs" class="push-right" data-i18n="ui.clear"></button></div>
+      <div class="toolbar"><strong data-i18n="ui.discovered_buttons"></strong><button id="inputs-help" class="icon-only" data-i18n-label="ui.details_discovered_buttons" data-i18n-tooltip="ui.details_discovered_buttons"><i class="ti ti-list-details" aria-hidden="true"></i></button><span id="discovery-modifiers" class="discovery-modifiers"></span><button id="clear-inputs" class="push-right" data-i18n="ui.clear"></button></div>
       <div id="inputs" class="input-panel workspace-pane" tabindex="0" data-i18n-label="ui.discovered_buttons"><span class="empty" data-i18n="ui.enable_for_a_mouse_or_keyboard_then_press"></span></div>
       <div id="mappings" class="table-scroll mappings-table workspace-pane" tabindex="0" data-i18n-label="ui.mappings"></div>
     </section>

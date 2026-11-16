@@ -121,7 +121,11 @@ function modal(title, saveLabel = 'forms.action.save') {
   footer.append(status, cancel, save); form.append(head, body, footer); dialog.append(form);
   let saved = false, busy = false;
   const done = new Promise(resolve => {
-    dialog.addEventListener('close', () => { forget(dialog); dialog.remove(); returnFocus?.isConnected && returnFocus.focus(); resolve(saved); }, { once: true });
+    dialog.addEventListener('close', () => {
+      forget(dialog); dialog.remove();
+      document.dispatchEvent(new Event('naseqmen:form-state'));
+      returnFocus?.isConnected && returnFocus.focus(); resolve(saved);
+    }, { once: true });
   });
   close.addEventListener('click', () => { if (!busy) dialog.close(); });
   cancel.addEventListener('click', () => { if (!busy) dialog.close(); });
@@ -148,6 +152,7 @@ function modal(title, saveLabel = 'forms.action.save') {
       finally { busy = false; save.disabled = false; cancel.disabled = false; close.disabled = false; }
     });
     (document.querySelector('.lu-shell') || document.body).append(dialog); dialog.showModal();
+    document.dispatchEvent(new Event('naseqmen:form-state'));
     (body.querySelector('input[type=text],textarea') || body.querySelector('input:checked,input'))?.focus();
     return done;
   };

@@ -2,7 +2,7 @@
 import { t } from './i18n.js';
 import { el, field, modal, forget, choices, descriptorChoice, replaceById, FormError } from './forms/common.js';
 export { showDetails } from './forms/common.js';
-export { editNode, chooseNodeRole } from './forms/node-editor.js';
+export { editNode, chooseNodeRole, chooseSourceInterface, chooseMappingInput } from './forms/node-editor.js';
 
 export function editConnection(config, modules, id, save) {
   const original = structuredClone(config.connections.find(c => c.id === id) || { id: crypto.randomUUID(), name: t('forms.title.newConnection'), module: modules[0]?.id || '', enabled: true, settings: {} });
@@ -63,13 +63,27 @@ export function editLinks(config, save) {
   const from = field(grid, 'from', 'forms.field.from', '', { options, required: true });
   const to = field(grid, 'to', 'forms.field.to', '', { options, required: true });
   const mode = field(grid, 'mode', 'forms.role.action', 'add', { options: [['add', 'forms.action.addLink'], ['remove', 'forms.action.removeLink']] });
+  const outcome = field(grid, 'outcome', 'forms.field.outcome', 'match', {
+    options: [['match', 'forms.outcome.match'], ['miss', 'forms.outcome.miss']]
+  });
+  const updateOutcome = () => {
+    const node = config.nodes.find(n => n.id === from.value);
+    outcome.closest('.form-row').hidden = node?.kind !== 'event' || node.operation === 'default' || mode.value === 'remove';
+    if (!outcome.closest('.form-row').hidden && config.nodes.find(n => n.id === to.value)?.operation === 'default')
+      outcome.querySelector('input[value="miss"]').checked = true;
+  };
+  for (const control of [from, to, mode]) control.addEventListener('change', updateOutcome);
+  updateOutcome();
   return view.open(async () => {
     if (!from.value || !to.value) throw new FormError('forms.error.linkNodes');
     if (from.value === to.value) throw new FormError('forms.error.selfLink');
     const candidate = structuredClone(config);
     const exists = candidate.edges.some(e => e.from === from.value && e.to === to.value);
     if (mode.value === 'remove') { if (!exists) throw new FormError('forms.error.linkMissing'); candidate.edges = candidate.edges.filter(e => e.from !== from.value || e.to !== to.value); }
-    else { if (exists) throw new FormError('forms.error.linkDuplicate'); candidate.edges.push({ from: from.value, to: to.value }); }
+    else {
+      if (exists) throw new FormError('forms.error.linkDuplicate');
+      candidate.edges.push({ from: from.value, to: to.value, outcome: outcome.closest('.form-row').hidden ? 'match' : outcome.value });
+    }
     await save(candidate);
   });
 }

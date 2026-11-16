@@ -33,6 +33,26 @@ config.DryRun = false;
 Assert((await runtime.ApplyAsync(config)).Valid, "apply live fake configuration");
 await runtime.ProcessAsync(new Signal { Module = "test", Phase = "down", Value = "hello" });
 Assert(module.Count == 2 && module.Last == "HELLO", "fake receives host and node calls in order");
+var discoveryOwner = Guid.NewGuid();
+var discoveryInput = new Signal { Module = "test", Phase = "down", Value = "discovery test" };
+var discovery = new DiscoveryCaptureRequest(discoveryOwner, ["some keyboard"]);
+await runtime.SetDiscoveryAsync(discovery, CancellationToken.None);
+Assert(module.CaptureInterfaces.SequenceEqual(["some keyboard"]), "normal discovery arms the module capture");
+while (trace.Reader.TryRead(out _)) { }
+Assert(runtime.TryPublish(discoveryInput), "discovery accepts input for diagnostics");
+await runtime.ProcessAsync(discoveryInput);
+await runtime.SetDiscoveryAsync(new(Guid.NewGuid(), []), CancellationToken.None);
+await runtime.ProcessAsync(discoveryInput);
+Assert(module.Count == 2 && trace.Reader.TryRead(out var captured) &&
+    captured.Stage == "input" && !trace.Reader.TryRead(out _),
+    "discovery blocks all graph sources and ignores another owner's release");
+await runtime.SetDiscoveryAsync(discovery with { AllowEditing = true }, CancellationToken.None);
+await runtime.ProcessAsync(discoveryInput);
+Assert(module.CaptureInterfaces.Length == 0 && module.Count == 2,
+    "editing releases physical capture while all graph sources remain paused");
+await runtime.SetDiscoveryAsync(new(discoveryOwner, []), CancellationToken.None);
+await runtime.ProcessAsync(discoveryInput);
+Assert(module.Count == 4, "discovery owner release restores routing");
 var broken = runtime.GetConfiguration();
 broken.Nodes[2].Settings["code"] = "this is not C#";
 Assert(!(await runtime.ApplyAsync(broken)).Valid, "bad C# rejected");
@@ -81,11 +101,17 @@ static void Assert(bool condition, string name)
     Console.WriteLine("PASS " + name);
 }
 
-sealed class Fake : NaModule
+sealed class Fake : NaModule, IDiscoveryCapture
 {
     public int Count;
     public string? Last;
+    public string[] CaptureInterfaces { get; private set; } = [];
     public override ModuleDescriptor Descriptor => new("fake", "Fake", "1", false, false, [new("do", "Do", ["arg"])], []);
+    public ValueTask<string[]> SetDiscoveryAsync(Guid owner, string[] interfaces, CancellationToken cancellationToken)
+    {
+        CaptureInterfaces = interfaces;
+        return ValueTask.FromResult(interfaces);
+    }
     public override ValueTask<ActionResult> ExecuteAsync(ActionRequest request, CancellationToken cancellationToken = default)
     {
         Count++; Last = request.Arguments["arg"];

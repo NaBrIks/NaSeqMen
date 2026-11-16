@@ -7,5 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../NaSeqMen.Runtime/NaSeqMen.Runtime.csproj" />
+    <EmbeddedResource Include="Assets/Tabler/arrows-split.ico" LogicalName="Tabler.arrows-split.ico" />
+    <None Include="../NaSeqMen.Editor/Assets/Tabler/LICENSE" Link="licenses/Tabler/LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

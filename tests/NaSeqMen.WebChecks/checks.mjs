@@ -24,7 +24,7 @@ let config = {
     node('action', 'Копировать', 'action', { module: 'windows.desktop', operation: 'chord', connectionId: 'desktop', settings: { keys: 'Ctrl+C' } })
   ],
   edges: [{ from: 'source', to: 'condition' }, { from: 'condition', to: 'script' }, { from: 'script', to: 'action' }],
-  connections: [{ id: 'desktop', name: 'Windows', module: 'windows.desktop', enabled: true, settings: {} }, { id: 'obs', name: 'OBS — пример', module: 'obs', enabled: true, settings: { url: 'ws://127.0.0.1:4455', password: 'TEST-ONLY-NOT-A-SECRET' } }],
+  connections: [{ id: 'desktop', name: 'Windows', module: 'windows.desktop', enabled: true, settings: {} }, { id: 'win-input', name: 'Input', module: 'windows.input', enabled: true, settings: {} }, { id: 'obs', name: 'OBS — пример', module: 'obs', enabled: true, settings: { url: 'ws://127.0.0.1:4455', password: 'TEST-ONLY-NOT-A-SECRET' } }],
   mappings: [{ id: 'mapping', source: 'mouse-a', control: 'mouse:button4', name: 'Копировать', policy: 'map' }]
 };
 const devices = [
@@ -60,7 +60,9 @@ try {
     else if (url.pathname === '/api/devices') body = devices;
     else if (url.pathname === '/api/devices/capture') {
       captures.push(request.postDataJSON());
-      body = captures.at(-1).interfaces.filter(id => devices.some(device => device.id === id && device.canSuppress));
+      const interfaces = captures.at(-1).interfaces;
+      body = captures.at(-1).allowEditing ? [] : interfaces.filter(id => devices.some(device => device.id === id && device.canSuppress));
+      if (interfaces.length && !captures.at(-1).allowEditing) body.push('@discovery-keyboard');
     }
     else if (url.pathname === '/api/config/validate') body = { valid: true, errors: [] };
     else if (url.pathname === '/api/inject') body = { accepted: true };
@@ -164,10 +166,10 @@ try {
   await page.getByRole('button', { name: 'Отмена', exact: true }).click();
   await page.locator('[data-tab="graph"]').click();
 
-  const emit = async (source, control, phase = 'down', value = '1', stage = 'input', nodeId = '') => {
+  const emit = async (source, control, phase = 'down', value = '1', stage = 'input', nodeId = '', modifiers = null) => {
     const id = ++sequence;
     await page.evaluate(d => window.__emit(d), { time: new Date(1700000000000 + id).toISOString(), signalId: 'signal-' + id, nodeId, stage, message: 'event-' + id,
-      signal: { id: 'signal-' + id, source, control, phase, value, valueType: 'number', module: 'windows.input' } });
+      signal: { id: 'signal-' + id, source, control, phase, value, valueType: 'number', module: 'windows.input', modifiers } });
   };
   const emitBatch = async count => {
     const start = sequence + 1; sequence += count;
@@ -186,7 +188,7 @@ try {
     const lines = [...document.querySelectorAll('.graph-wire.graph-active')];
     return frame && { frame: getComputedStyle(frame).strokeWidth, wires: lines.map(line => getComputedStyle(line).strokeWidth) };
   });
-  check(highlight?.frame === '3px' && highlight.wires.length === 1 && highlight.wires[0] === '3px',
+  check(highlight?.frame === '3px' && highlight.wires.length === 1 && highlight.wires[0] === '4px',
     'blocked condition thickens its frame and only the traversed wire');
   await emit('test', 'demo', 'down', '1', 'intended', 'action');
   check(await actionNode.evaluate(node => !node.classList.contains('graph-active')), 'planned action is not highlighted as completed');
@@ -199,6 +201,28 @@ try {
     'completed action gets the success highlight');
   check(await page.locator('.graph-delivery .graph-active').count() === 1 && await page.locator('.graph-destination.graph-active').count() === 1,
     'successful delivery highlights the destination and its wire');
+  const pulseColors = await page.evaluate(() => {
+    const shell = document.querySelector('.lu-shell');
+    const theme = shell.dataset.theme;
+    const box = document.querySelector('[data-node-id="action"] > .graph-node-box');
+    const read = () => ({
+      fill: getComputedStyle(box).fill,
+      normalFill: getComputedStyle(document.querySelector('[data-node-id="script"] > .graph-node-box')).fill,
+      stroke: getComputedStyle(box).stroke,
+      width: getComputedStyle(box).strokeWidth,
+      x: box.getBoundingClientRect().x, y: box.getBoundingClientRect().y
+    });
+    const light = read();
+    shell.dataset.theme = 'dark';
+    const dark = read();
+    shell.dataset.theme = theme;
+    return { light, dark };
+  });
+  check(pulseColors.light.stroke === 'rgb(0, 128, 40)' && pulseColors.dark.stroke === 'rgb(85, 245, 117)' &&
+    pulseColors.light.fill === pulseColors.light.normalFill && pulseColors.dark.fill === pulseColors.dark.normalFill &&
+    pulseColors.light.width === '4px' && pulseColors.dark.width === '4px' &&
+    pulseColors.light.x === pulseColors.dark.x && pulseColors.light.y === pulseColors.dark.y,
+  'success changes only the node outline in light and dark themes without moving it');
   const atBottom = () => page.locator('#logs').evaluate(host => host.scrollHeight - host.clientHeight - host.scrollTop < 3);
   await emitBatch(100);
   check(await atBottom(), 'log follows new events while at bottom');
@@ -251,11 +275,50 @@ try {
   await emit('keyboard-a', 'key:12');
   check(mutations.length === 0, 'discovery and diagnostics made no API mutations');
 
-  await page.locator('#inputs .input-key').filter({ hasText: 'Копировать' }).click();
-  await page.locator('dialog[open]').waitFor();
-  check(await page.locator('dialog input[name="name"]').inputValue() === 'Копировать', 'input indicator opens populated mapping modal');
-  check(await page.locator('dialog input[name="phase"]').getAttribute('readonly') !== null, 'technical event phase is read-only');
+  const mouseCard = page.locator('#inputs .input-key').filter({ hasText: 'Копировать' });
+  await mouseCard.locator('.input-label').click();
+  check(await page.locator('dialog[open]').count() === 0 && await mouseCard.locator('.input-add').count() === 1,
+    'discovery card label is passive and its add control is inside the card');
+  await page.locator('#add-discovery-mapping').click();
+  await page.locator('dialog label.form-choice').filter({ hasText: 'mouse:button4' }).locator('input').check();
+  await page.locator('dialog button[type=submit]').click();
+  check(await page.locator('dialog input[name="name"]').inputValue() === 'Копировать', 'mapping table opens the separate event naming form');
+  await page.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await mouseCard.locator('.input-add').click();
+  await page.locator('dialog[data-node-role="event"]').waitFor();
+  await page.locator('#discovery-guard[data-state="idle"]').waitFor();
+  check(captures.at(-1).allowEditing && captures.at(-1).interfaces.length > 0,
+    'opening the event form releases Windows capture but keeps the graph paused');
+  const known = page.getByRole('combobox', { name: 'Известные события' });
+  await known.selectOption('mouse:button5');
+  check(await page.locator('dialog input[name="control"]').inputValue() === 'mouse:button5' &&
+    await known.locator('option[value="Копировать"]').count() === 1 &&
+    await known.locator('option[value="key:E0:5B"]').count() === 0,
+  'mouse event presets include mapped names and mouse controls, and preserve a manual field');
   await page.screenshot({ path: path.join(output, 'web-checks-modal.png') });
+  await page.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await page.locator('#discovery-guard[data-state="blocked"]').waitFor();
+  await emit('@discovery-keyboard', 'key:E0:5B', 'down', '1', 'input', '', { sourceHeld: 64, globalHeld: 64 });
+  await emit('@discovery-keyboard', 'key:12', 'down', '1', 'input', '', { sourceHeld: 64, globalHeld: 64 });
+  const chord = page.locator('#inputs .input-key').filter({ hasText: 'Win+E' });
+  check(await page.locator('#inputs .input-label').getByText('E', { exact: true }).count() > 0,
+    'plain key and combination appear simultaneously');
+  check(await page.locator('#discovery-modifiers').textContent() === 'Удерживаются · LWin' &&
+    await chord.locator('code').textContent() === '12', 'keyboard cards retain scan codes and show detected named chords and held modifiers');
+  await chord.locator('.input-add').click();
+  await page.locator('dialog input[name="source"][value="keyboard-a"]').check();
+  await page.locator('dialog button[type=submit]').click();
+  check(await page.locator('dialog input[name="operation"][value="chord"]').isChecked() &&
+    await page.locator('dialog input[name="modifiers"]').inputValue() === 'Win',
+    'the combination card opens a ready-to-save chord');
+  await page.locator('dialog input[name="operation"][value="sequence"]').check();
+  await page.getByRole('button', { name: 'Записать последовательность' }).click();
+  await page.getByText('Нажмите и отпустите клавиши на выбранном интерфейсе.').waitFor();
+  check(!captures.at(-1).allowEditing, 'sequence recording resumes Windows blocking after the form released it');
+  for (const [code, phase] of [['key:E0:5B', 'down'], ['key:12', 'down'], ['key:12', 'up'], ['key:E0:5B', 'up']])
+    await emit('@discovery-keyboard', code, phase);
+  check(await page.locator('dialog textarea[name="steps"]').inputValue() === 'key:E0:5B down\nkey:12 down\nkey:12 up\nkey:E0:5B up',
+    'a captured Win chord fills all four sequence steps for the explicitly selected keyboard');
   await page.getByRole('button', { name: 'Отмена', exact: true }).click();
   await page.screenshot({ path: path.join(output, 'web-checks.png') });
   await page.setViewportSize({ width: 900, height: 600 });
@@ -265,6 +328,8 @@ try {
   await page.locator('[data-tab="graph"]').click();
   await page.locator('#add-node').click(); await page.locator('dialog[open]').waitFor();
   check(await page.locator('dialog input[type="radio"][name="kind"]').count() === 6, 'role is selected before creating a node');
+  check(await page.locator('dialog [data-field="kind"]').evaluate(group => getComputedStyle(group).flexDirection) === 'column',
+    'global add lists roles in a column');
   await page.locator('dialog input[name="kind"][value="script"]').check();
   await page.locator('dialog button[type="submit"]').click();
   await page.locator('dialog[data-node-role="script"]').waitFor();
@@ -272,13 +337,30 @@ try {
         await page.locator('dialog input[type="radio"][name="inputType"]').count() === 4,
         'script editor has fixed role, relevant fields and radio port types');
   await page.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await page.locator('#add-node').click();
+  await page.locator('dialog input[name="kind"][value="source"]').check();
+  await page.locator('dialog button[type=submit]').click();
+  const devicePicker = page.getByRole('combobox', { name: 'Обнаруженные интерфейсы' });
+  await devicePicker.selectOption('keyboard-a');
+  check(await page.locator('dialog input[name="source"]').inputValue() === 'keyboard-a' &&
+    await page.locator('dialog select[name="plugin"]').inputValue() === 'windows.input' &&
+    await devicePicker.locator('option[value="hid-a"]').count() === 0,
+    'source presets fill the Windows input interface, exclude auxiliary HID, and keep manual editing available');
+  await page.getByRole('button', { name: 'Отмена', exact: true }).click();
   await page.locator('[data-tab="connections"]').click();
   check(!(await page.locator('#connections').textContent()).includes('TEST-ONLY-NOT-A-SECRET'), 'connection table never exposes password');
   await page.locator('#add-connection').click(); await page.locator('dialog[open]').waitFor();
   check(await page.locator('dialog input[name="name"]').count() === 1, 'connection modal is available');
   await page.getByRole('button', { name: 'Отмена', exact: true }).click();
   const outputModes = page.locator('#output-modes');
+  const outputSettings = page.locator('#output-settings');
   check(await outputModes.getAttribute('data-mode') === 'global', 'global test is explicitly marked in the toolbar');
+  await outputModes.click();
+  await page.waitForFunction(() => document.querySelector('#output-modes').getAttribute('aria-pressed') === 'false');
+  check(config.dryRun === false && await page.locator('dialog').count() === 0, 'global Test toggles off directly with no dialog');
+  await outputModes.click();
+  await page.waitForFunction(() => document.querySelector('#output-modes').getAttribute('aria-pressed') === 'true');
+  check(config.dryRun === true && await page.locator('dialog').count() === 0, 'global Test toggles on directly with no dialog');
   devices[0].physicalDeviceId = devices[1].physicalDeviceId = 'composite-mouse';
   devices[0].physicalDeviceName = devices[1].physicalDeviceName = 'Test receiver';
   config.nodes.push(
@@ -288,7 +370,7 @@ try {
   );
   await page.locator('#reload').click();
   await page.locator('[data-tab="graph"]').click();
-  const section = page.getByRole('button', { name: 'Test receiver · Мышь + клавиатура' });
+  const section = page.getByRole('button', { name: 'Test receiver · Мышь + клавиатура', exact: true });
   await section.waitFor();
   await section.click();
   check(await section.getAttribute('aria-expanded') === 'false' &&
@@ -297,8 +379,75 @@ try {
   await section.press('Enter');
   check(await page.locator('.graph-node[data-node-id="mouse-source"], .graph-node[data-node-id="keyboard-source"]').count() === 2,
     'keyboard activation expands both interfaces');
+  const receiver = section.locator('..');
+  for (const mode of ['pause', 'debug', 'play']) {
+    const control = receiver.locator(`[data-section-control="${mode}"]`);
+    await control.press('Enter');
+    await receiver.locator(`[data-section-control="${mode}"][aria-pressed=true]`).waitFor();
+    check(config.nodes.filter(node => ['mouse-source', 'keyboard-source'].includes(node.id))
+      .every(node => node.enabled === (mode !== 'pause') && !!node.previewOnly === (mode === 'debug')) &&
+      config.nodes.find(node => node.id === 'source').enabled && config.dryRun,
+    'zone ' + mode + ' applies only to its two sources and preserves global Test');
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+  check(await page.locator('.graph-add .graph-add-dock').count() === 12,
+    'each expanded section has six add controls with docking points');
+  const dragToAdd = async lane => {
+    const start = page.locator('[data-node-id="mouse-source"] .graph-port-out .graph-port-dot');
+    const dock = page.locator(`.graph-add[data-add-lane="${lane}"] .graph-add-dock`).first();
+    await dock.evaluate(element => element.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const a = await start.boundingBox(), b = await dock.boundingBox();
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
+    await page.mouse.up();
+  };
+  await dragToAdd(1);
+  await page.locator('dialog[data-node-role="event"]').waitFor();
+  await page.locator('dialog input[name="name"]').fill('Docked button');
+  await page.locator('dialog input[name="control"]').fill('mouse:button4');
+  await page.locator('dialog button[type="submit"]').click();
+  await page.locator('dialog').waitFor({ state: 'detached' });
+  const docked = config.nodes.find(node => node.name === 'Docked button');
+  check(docked?.kind === 'event' && config.edges.some(edge => edge.from === 'mouse-source' && edge.to === docked.id),
+    'dropping on the Events dock saves the new node and its link together');
+  const beforeChoose = mutations.length;
+  await dragToAdd(3);
+  await page.locator('dialog input[name="kind"]').first().waitFor();
+  check(await page.locator('dialog input[name="kind"]').evaluateAll(options => options.map(option => option.value).join(',')) === 'transform,script',
+    'dropping on Processing offers only its two roles');
+  await page.getByRole('button', { name: 'Отмена', exact: true }).click();
+  check(mutations.length === beforeChoose, 'cancelling a docked role leaves the graph unchanged');
+  await actionNode.locator('.graph-node-box').dblclick();
+  const shortcutField = page.locator('dialog input[name="keys"]');
+  const record = page.locator('dialog .shortcut-record');
+  const presets = page.locator('dialog .shortcut-presets');
+  await shortcutField.waitFor();
+  await page.screenshot({ path: path.join(output, 'web-checks-shortcut.png') });
+  await presets.selectOption('Win+E');
+  check(await shortcutField.inputValue() === 'Win+E', 'a shortcut reserved by Windows can be chosen without pressing it');
+  await record.click();
+  const beforeRecording = mutations.length;
+  await page.keyboard.press('Control+Shift+K');
+  check(await shortcutField.inputValue() === 'Ctrl+Shift+K' && await record.getAttribute('aria-pressed') === 'false' &&
+    mutations.length === beforeRecording, 'recording writes the chord to the field without saving or executing it');
+  await record.click();
+  await page.keyboard.press('Enter');
+  check(await shortcutField.inputValue() === 'Enter' && await shortcutField.isVisible(),
+    'capturing Enter does not submit the dialog');
+  await record.click();
+  await page.keyboard.press('Escape');
+  check(await shortcutField.inputValue() === 'Enter' && await record.getAttribute('aria-pressed') === 'false' &&
+    await shortcutField.isVisible(), 'Escape cancels recording and leaves the dialog and current value intact');
+  await shortcutField.fill('LCtrl+SC:2E');
+  await page.locator('dialog button[type="submit"]').click();
+  await page.locator('dialog').waitFor({ state: 'detached' });
+  check(config.nodes.find(node => node.id === 'action').settings.keys === 'LCtrl+SC:2E',
+    'special cases still accept the original manual syntax');
   await outputModes.click();
-  await page.locator('dialog #dry-run').uncheck();
+  await page.waitForFunction(() => document.querySelector('#output-modes').getAttribute('aria-pressed') === 'false');
+  await outputSettings.click();
   await page.getByRole('button', { name: 'Все действия в пробный' }).click();
   await page.locator('dialog .output-mode-table tbody tr').filter({ hasText: 'Paste' }).locator('input').uncheck();
   await page.locator('dialog button[type=submit]').click();
@@ -307,25 +456,44 @@ try {
     !config.nodes.find(n => n.id === 'action-two').previewOnly &&
     await outputModes.getAttribute('data-mode') === 'scoped', 'bulk Test and an individual override can be saved together');
   check(await actionNode.evaluate(node => node.classList.contains('graph-preview-only')), 'test action is marked on the graph');
-  await outputModes.click();
+  const play = actionNode.locator('.graph-mode[data-action="play"]');
+  const pause = actionNode.locator('.graph-mode[data-action="pause"]');
+  check(await page.locator('.graph-node').evaluateAll(nodes => nodes.every(node => {
+    const title = node.querySelector('.graph-node-title').getBBox();
+    const play = node.querySelector('[data-action="play"] rect').getBBox();
+    return title.x + title.width <= play.x - 2;
+  })), 'node titles leave a gap before the Play and Pause controls');
+  check(await play.getAttribute('aria-pressed') === 'true' && await pause.getAttribute('aria-pressed') === 'false',
+    'both controls are present with Play selected in test mode');
+  check(await play.evaluate(button => getComputedStyle(button.querySelector('rect')).fill === 'rgba(0, 0, 0, 0)' &&
+    getComputedStyle(button.querySelector('path')).strokeWidth === '2.5px'),
+    'selected Play uses a thicker icon stroke and a transparent hit area');
+  await pause.press('Enter');
+  await actionNode.locator('.graph-mode-controls[data-mode="off"]').waitFor();
+  check(await pause.getAttribute('aria-pressed') === 'true' && await play.getAttribute('aria-pressed') === 'false' &&
+    config.nodes.find(n => n.id === 'action').previewOnly, 'Pause disables the action and preserves test mode');
+  await play.press('Space');
+  await actionNode.locator('.graph-mode-controls[data-mode="test"]').waitFor();
+  check(await play.getAttribute('aria-pressed') === 'true' && config.nodes.find(n => n.id === 'action').previewOnly,
+    'Play resumes the action in the same test mode');
+  await outputSettings.click();
   await page.getByRole('button', { name: 'Все действия в пробный' }).click();
   await page.locator('dialog button[type=submit]').click();
   await page.locator('dialog').waitFor({ state: 'detached' });
   check(await outputModes.getAttribute('data-mode') === 'allActions' && !config.dryRun,
     'all actions in Test has a distinct indicator from the global graph switch');
-  await outputModes.click();
+  await outputSettings.click();
   await page.getByRole('button', { name: 'Все действия в рабочий' }).click();
   await page.locator('dialog button[type=submit]').click();
   await page.locator('dialog').waitFor({ state: 'detached' });
   check(!config.nodes.some(n => n.kind === 'action' && n.previewOnly) &&
     await outputModes.getAttribute('data-mode') === 'live', 'bulk Live clears action test flags');
-  const modeControl = actionNode.locator('.graph-mode');
-  for (const mode of ['test', 'off', 'live']) {
-    await modeControl.press('Enter');
-    await actionNode.locator(`.graph-mode[data-mode="${mode}"]`).waitFor();
+  for (const [control, mode] of [[pause, 'off'], [play, 'live']]) {
+    await control.click();
+    await actionNode.locator(`.graph-mode-controls[data-mode="${mode}"]`).waitFor();
     const action = config.nodes.find(n => n.id === 'action');
-    check(action.enabled === (mode !== 'off') && action.previewOnly === (mode === 'test'),
-      'Tabler node control sets ' + mode);
+    check(action.enabled === (mode === 'live') && !action.previewOnly && await control.getAttribute('aria-pressed') === 'true',
+      'Direct Tabler node control sets ' + mode);
   }
   devices[0].canSuppress = devices[1].canSuppress = true;
   await Promise.all([
@@ -334,6 +502,7 @@ try {
   ]);
   await page.locator('[data-tab="devices"]').click();
   await page.waitForFunction(() => document.querySelectorAll('#devices .captured').length === 2);
+  await page.locator('#discovery-guard[data-state="blocked"]').waitFor();
   check(captures.at(-1).interfaces.toSorted().join(',') === 'keyboard-a,mouse-a',
     'discovery captures both interfaces of the configured composite device');
   await page.locator('[data-tab="graph"]').click();
@@ -353,6 +522,28 @@ try {
   await page.locator('.graph-edge').filter({ has: page.locator('.graph-wire-selected') }).waitFor({ state: 'detached' });
   await page.waitForFunction(name => ![...document.querySelectorAll('.graph-edge')].some(edge => edge.getAttribute('aria-label') === name), wireName);
   check(config.edges.length === priorEdges - 1 && config.nodes.length === priorNodes, 'Delete removes only the selected wire and keeps both nodes');
+  const addEvent = async (name, operation) => {
+    await page.locator('#add-node').click();
+    await page.locator('dialog input[name="kind"][value="event"]').check();
+    await page.locator('dialog button[type=submit]').click();
+    await page.locator('dialog input[name="name"]').fill(name);
+    await page.locator(`dialog input[name="operation"][value="${operation}"]`).check();
+    await page.locator('dialog button[type=submit]').click();
+    await page.locator('dialog[open]').waitFor({ state: 'detached' });
+    return config.nodes.find(node => node.name === name).id;
+  };
+  const firstEvent = await addEvent('First Event', 'match');
+  const defaultEvent = await addEvent('Default Event', 'default');
+  await page.locator('#links').click();
+  await page.locator(`dialog input[name="from"][value="${firstEvent}"]`).check();
+  await page.locator(`dialog input[name="to"][value="${defaultEvent}"]`).check();
+  check(await page.locator('dialog input[name="outcome"][value="miss"]').isChecked(),
+    'a link to Default selects No match');
+  await page.locator('dialog button[type=submit]').click();
+  await page.locator('dialog[open]').waitFor({ state: 'detached' });
+  check(config.edges.some(edge => edge.from === firstEvent && edge.to === defaultEvent && edge.outcome === 'miss') &&
+    await page.locator('.graph-edge .graph-wire[stroke-dasharray="5 3"]').count() === 1,
+    'No match is saved and rendered as a dashed wire');
   check(consoleErrors.length === 0, 'no browser console or page errors');
   writeFileSync(path.join(output, 'web-checks-results.json'), JSON.stringify({ passed: results.length, results, consoleErrors, mutations, baseUrl, executablePath }, null, 2));
   console.log(`PASS ${results.length}/${results.length}; screenshots and results in local/`);

@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
@@ -130,7 +129,7 @@ app.Map("/api/diagnostics", async context =>
     }
 });
 
-using var tray = args.Contains("--no-tray", StringComparer.Ordinal) ? null : new TrayLifetime(root, app.Lifetime);
+using var tray = args.Contains("--no-tray", StringComparer.Ordinal) ? null : new TrayLifetime(root, app.Lifetime, app.Logger);
 await app.RunAsync();
 
 string? Argument(string name)
@@ -145,24 +144,26 @@ internal sealed class TrayLifetime : IDisposable
     private System.Windows.Forms.ApplicationContext? _context;
     private readonly ManualResetEventSlim _ready = new();
 
-    public TrayLifetime(string root, IHostApplicationLifetime lifetime)
+    public TrayLifetime(string root, IHostApplicationLifetime lifetime, ILogger logger)
     {
         _thread = new Thread(() =>
         {
             _context = new System.Windows.Forms.ApplicationContext();
+            var editor = new EditorWindowLauncher(root, logger);
+            using var iconStream = typeof(TrayLifetime).Assembly.GetManifestResourceStream("Tabler.arrows-split.ico")!;
+            using var trayIcon = new System.Drawing.Icon(iconStream, System.Windows.Forms.SystemInformation.SmallIconSize);
             using var menu = new System.Windows.Forms.ContextMenuStrip();
-            menu.Items.Add(M("executor.openEditor").Message, null, (_, _) =>
-            {
-                var path = Path.Combine(root, "artifacts", "alpha", "editor", "NaSeqMen.Editor.exe");
-                if (File.Exists(path))
-                    Process.Start(new ProcessStartInfo(path) { UseShellExecute = false, ArgumentList = { "--root", root } });
-            });
+            menu.Items.Add(M("executor.openEditor").Message, null, (_, _) => editor.OpenOrActivate());
             menu.Items.Add(M("executor.exit").Message, null, (_, _) => lifetime.StopApplication());
             using var icon = new System.Windows.Forms.NotifyIcon
             {
-                Icon = System.Drawing.SystemIcons.Application, Text = M("executor.tray").Message,
-                Visible = true, ContextMenuStrip = menu
+                Icon = trayIcon, Text = M("executor.tray").Message, ContextMenuStrip = menu
             };
+            icon.MouseClick += (_, e) =>
+            {
+                if (e.Button == System.Windows.Forms.MouseButtons.Left) editor.OpenOrActivate();
+            };
+            icon.Visible = true;
             _ready.Set();
             System.Windows.Forms.Application.Run(_context);
         }) { IsBackground = true, Name = "NaSeqMen.Tray" };

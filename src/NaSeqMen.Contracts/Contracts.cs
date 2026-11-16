@@ -58,6 +58,7 @@ public sealed class EdgeDefinition
 {
     public string From { get; set; } = "";
     public string To { get; set; } = "";
+    public string Outcome { get; set; } = "match";
 }
 
 public sealed class InputMapping
@@ -124,7 +125,9 @@ public static class PortTypes
         ? node.Operation == "scale" ? "number" : node.Operation == "text" ? "text" : node.OutputType
         : node.Kind == "event" && node.Operation == "sequence" ? "number" : node.OutputType;
     public static bool Compatible(NodeDefinition source, NodeDefinition target)
-        => Output(source) == "any" || Input(target) == "any" || Output(source) == Input(target);
+        => Compatible(Output(source), Input(target));
+    public static bool Compatible(string output, string input)
+        => output == "any" || input == "any" || output == input;
 }
 
 public interface IModuleHost

@@ -16,6 +16,7 @@
 .form-choice { display: inline-flex; align-items: center; gap: 4px; line-height: 18px; min-width: 0; overflow-wrap: anywhere; }
 .form-choice input { flex: none; margin: 0; accent-color: var(--lu-primary); }
 .form-choices-long { max-height: 130px; overflow: auto; overscroll-behavior: contain; }
+.form-choices-column { flex-direction: column; align-items: flex-start; }
 .form-choices[aria-invalid="true"] { outline: 1px solid var(--lu-danger); }
 .form-dialog .form-control[type="checkbox"] { width: 16px; height: 16px; min-height: 16px; margin-top: 4px; accent-color: var(--lu-primary); }
 .form-dialog textarea.form-control { height: auto; resize: vertical; min-height: 80px; tab-size: 4; }
@@ -23,6 +24,13 @@
 .form-dialog .form-control:focus-visible, .form-dialog button:focus-visible { outline: 1px solid var(--lu-primary); outline-offset: 1px; }
 .form-dialog .form-control[readonly] { color: var(--lu-text-muted); }
 .form-dialog .form-control[aria-invalid="true"] { border-color: var(--lu-danger); }
+.shortcut-control { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 8.5em) minmax(0, 7em); gap: var(--cell-y, 3px); }
+.parameter-suggestions { display:grid; grid-template-columns:minmax(0,1fr); gap:var(--cell-y,3px); }
+.parameter-suggestions.has-suggestions { grid-template-columns:minmax(0,1fr) minmax(0,42%); }
+.sequence-capture-status { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.shortcut-record { min-width: 0; padding: 0 3px; border: 1px solid var(--lu-input-border); color: var(--lu-text); background: var(--lu-surface-alt); font: inherit; cursor: pointer; }
+.shortcut-control[data-recording=true] :is(input,.shortcut-record) { border-color: var(--lu-primary); color: var(--lu-input-text); }
+@media (max-width: 500px) { .shortcut-control { grid-template-columns: minmax(0, 1fr) minmax(0, 6.5em) minmax(0, 5.5em); font-size: 12px; } }
 .form-section-title { font-size: 13px; margin: 7px 0 4px; padding-top: 5px; border-top: 1px solid var(--lu-border); }
 .form-note { color: var(--lu-text-muted); font-size: 12px; margin: 5px 0 0; line-height: 17px; }
 .form-footer { display: flex; align-items: center; gap: var(--cell-y, 3px); border-top: 1px solid var(--lu-border); padding: var(--cell-y, 3px) var(--space, 6px); height: calc(24px + 4 * var(--cell-y, 3px)); box-sizing: border-box; flex: none; }

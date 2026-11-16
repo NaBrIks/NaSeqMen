@@ -15,7 +15,7 @@ public sealed partial class GraphRuntime : IModuleHost, IAsyncDisposable
     private readonly Dictionary<string, INaModule> _modules;
     private readonly ScriptCompiler _compiler = new();
     private readonly SemaphoreSlim _execution = new(1, 1);
-    private readonly Channel<(Signal Signal, long Epoch)> _input = Channel.CreateBounded<(Signal, long)>(
+    private readonly Channel<(Signal Signal, long Epoch, long DiscoveryVersion)> _input = Channel.CreateBounded<(Signal, long, long)>(
         new BoundedChannelOptions(2048) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
     private readonly CancellationTokenSource _stop = new();
     private readonly string _configurationPath;
@@ -148,7 +148,9 @@ public sealed partial class GraphRuntime : IModuleHost, IAsyncDisposable
     public bool TryPublish(Signal signal)
     {
         Trace(new(DateTimeOffset.UtcNow, signal.Id, "", "input", $"{signal.Source}: {signal.Control} {signal.Phase}", signal));
-        if (!_input.Writer.TryWrite((signal, Interlocked.Read(ref _queueEpoch))))
+        var discoveryVersion = Interlocked.Read(ref _discoveryVersion);
+        if (!CanRoute(discoveryVersion)) return true;
+        if (!_input.Writer.TryWrite((signal, Interlocked.Read(ref _queueEpoch), discoveryVersion)))
         {
             Interlocked.Increment(ref _queueEpoch);
             Trace(new(DateTimeOffset.UtcNow, signal.Id, "", "error", M("runtime.inputFull"), signal));
@@ -163,20 +165,22 @@ public sealed partial class GraphRuntime : IModuleHost, IAsyncDisposable
     {
         try
         {
-            await foreach (var (signal, epoch) in _input.Reader.ReadAllAsync(_stop.Token))
-                await ProcessAsync(signal, _stop.Token, epoch);
+            await foreach (var (signal, epoch, discoveryVersion) in _input.Reader.ReadAllAsync(_stop.Token))
+                await ProcessAsync(signal, _stop.Token, epoch, discoveryVersion);
         }
         catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
     }
 
     public Task ProcessAsync(Signal original, CancellationToken cancellationToken = default)
-        => ProcessAsync(original, cancellationToken, Interlocked.Read(ref _queueEpoch));
+        => ProcessAsync(original, cancellationToken, Interlocked.Read(ref _queueEpoch), Interlocked.Read(ref _discoveryVersion));
 
-    private async Task ProcessAsync(Signal original, CancellationToken cancellationToken, long epoch)
+    private async Task ProcessAsync(Signal original, CancellationToken cancellationToken, long epoch, long discoveryVersion)
     {
+        if (!CanRoute(discoveryVersion)) return;
         await _execution.WaitAsync(cancellationToken);
         try
         {
+            if (!CanRoute(discoveryVersion)) return;
             var prepared = _current;
             if (prepared.Epoch != epoch)
             {
@@ -185,7 +189,7 @@ public sealed partial class GraphRuntime : IModuleHost, IAsyncDisposable
             }
             ResetDisconnectedSequences(prepared, original);
             var signal = original;
-            var budget = new VisitBudget();
+            var budget = new VisitBudget(discoveryVersion);
             var mapping = prepared.Config.Mappings.FirstOrDefault(m => m.Source == original.Source && m.Control == original.Control);
             if (mapping?.Policy == "map") signal = original with { Control = mapping.Name, OriginalControl = original.Control };
             foreach (var source in prepared.Config.Nodes.Where(n => n.Enabled && n.Kind == "source")
@@ -199,26 +203,42 @@ public sealed partial class GraphRuntime : IModuleHost, IAsyncDisposable
     }
 
     private async Task VisitAsync(NodeDefinition node, Signal signal, Prepared prepared, VisitBudget budget,
-        NodeDefinition? previewSource, CancellationToken cancellationToken)
+        NodeDefinition? previewSource, CancellationToken cancellationToken, NodeDefinition? upstream = null)
     {
-        if (!node.Enabled) return;
+        if (!CanRoute(budget.DiscoveryVersion) || (!node.Enabled && node.Kind != "event")) return;
         cancellationToken.ThrowIfCancellationRequested();
         if (++budget.Visited > 4096)
         {
             if (budget.Visited == 4097) Emit(node, signal, "error", M("runtime.visitLimit"));
             return;
         }
-        Emit(node, signal, "received", node.Name);
         Signal? output = signal;
+        var edgeOutcome = "match";
         try
         {
-            CheckType(signal, PortTypes.Input(node), "input");
+            if (node.Kind == "event")
+            {
+                if (node.Operation == "default" && !node.Enabled) return;
+                var outcome = node.Enabled ? MatchEvent(node, signal, prepared, out output) : EventOutcome.Miss;
+                if (outcome == EventOutcome.Pending) return;
+                edgeOutcome = outcome == EventOutcome.Match ? "match" : "miss";
+                if (outcome == EventOutcome.Match)
+                {
+                    CheckType(signal, PortTypes.Input(node), "input");
+                    EmitArrival();
+                    if (node.Operation == "sequence")
+                        Emit(node, output, "transformed", M("runtime.sequenceMatched", ("event", output.Control)));
+                }
+                else if (prepared.Config.Edges.Any(e => e.From == node.Id && e.Outcome == "miss"))
+                    Emit(node, signal, "blocked", M("runtime.eventMiss"));
+            }
+            else
+            {
+                EmitArrival();
+                CheckType(signal, PortTypes.Input(node), "input");
+            }
             switch (node.Kind)
             {
-                case "event":
-                    output = MatchEvent(node, signal, prepared);
-                    if (output is null) return;
-                    break;
                 case "condition":
                     var pass = node.Module.Length == 0
                         ? EvaluateBuiltInCondition(node, signal)
@@ -242,7 +262,7 @@ public sealed partial class GraphRuntime : IModuleHost, IAsyncDisposable
                 case "script":
                     var context = new ScriptContext(
                         (module, connection, operation, arguments, token) => ExecuteActionAsync(node, signal, prepared,
-                            previewSource, module, connection, operation, arguments, token),
+                            previewSource, module, connection, operation, arguments, token, budget.DiscoveryVersion),
                         message => Emit(node, signal, "script", message), cancellationToken);
                     output = await prepared.Scripts[node.Id](new ScriptGlobals { Input = signal, Context = context }, cancellationToken);
                     if (output is null) { Emit(node, signal, "blocked", M("runtime.scriptNull")); return; }
@@ -251,27 +271,33 @@ public sealed partial class GraphRuntime : IModuleHost, IAsyncDisposable
                     break;
                 case "action":
                     var action = await ExecuteActionAsync(node, signal, prepared, previewSource, node.Module, node.ConnectionId,
-                        node.Operation, Expand(node.Settings, signal), cancellationToken);
+                        node.Operation, Expand(node.Settings, signal), cancellationToken, budget.DiscoveryVersion);
                     if (!action.Success && !action.Suppressed) return;
                     break;
             }
-            CheckType(output, PortTypes.Output(node), "output");
-            foreach (var next in prepared.Config.Edges.Where(e => e.From == node.Id)
+            if (edgeOutcome == "match") CheckType(output, PortTypes.Output(node), "output");
+            foreach (var next in prepared.Config.Edges.Where(e => e.From == node.Id && e.Outcome == edgeOutcome)
                          .Select(e => prepared.Nodes[e.To]).OrderBy(n => n.Order).ThenBy(n => n.Id, StringComparer.Ordinal))
             {
-                if (!next.Enabled) continue;
-                Trace(new(DateTimeOffset.UtcNow, output.Id, node.Id, "routed", M("runtime.routed", ("node", next.Name)), output, NextNodeId: next.Id));
-                await VisitAsync(next, output, prepared, budget, previewSource, cancellationToken);
+                await VisitAsync(next, output, prepared, budget, previewSource, cancellationToken, upstream: node);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex) { Emit(node, signal, "error", FromException(ex)); }
+
+        void EmitArrival()
+        {
+            if (upstream is not null)
+                Trace(new(DateTimeOffset.UtcNow, signal.Id, upstream.Id, "routed", M("runtime.routed", ("node", node.Name)), signal, NextNodeId: node.Id));
+            Emit(node, signal, "received", node.Name);
+        }
     }
 
     private async ValueTask<ActionResult> ExecuteActionAsync(NodeDefinition node, Signal signal, Prepared prepared,
         NodeDefinition? previewSource, string moduleId, string connectionId, string operation,
-        Dictionary<string, string> arguments, CancellationToken cancellationToken)
+        Dictionary<string, string> arguments, CancellationToken cancellationToken, long discoveryVersion)
     {
+        if (!CanRoute(discoveryVersion)) return new(false, M("runtime.suppressed"), Suppressed: true);
         if (!_modules.TryGetValue(moduleId, out var module) || !module.Descriptor.Actions.Any(a => a.Id == operation))
             throw Error<InvalidOperationException>(M("runtime.actionUnknown", ("module", moduleId), ("operation", operation)));
         if (connectionId.Length > 0 && !prepared.Config.Connections.Any(c => c.Id == connectionId && c.Module == moduleId && c.Enabled))
@@ -356,5 +382,9 @@ public sealed partial class GraphRuntime : IModuleHost, IAsyncDisposable
         public long Epoch { get; set; }
     }
 
-    private sealed class VisitBudget { public int Visited; }
+    private sealed class VisitBudget(long discoveryVersion)
+    {
+        public long DiscoveryVersion { get; } = discoveryVersion;
+        public int Visited;
+    }
 }

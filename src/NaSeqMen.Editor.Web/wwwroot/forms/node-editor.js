@@ -1,18 +1,32 @@
 // SPDX-License-Identifier: MIT
-import { t } from '../i18n.js';
+import { t, displayName } from '../i18n.js';
 import { el, field, modal, forget, setOptions, descriptorChoice, replaceById, FormError } from './common.js';
-import { roles, types, hints, parameters, parameterField } from './node-fields.js';
+import { roles, types, hints, parameters, parameterField, addSuggestions, controlSuggestions } from './node-fields.js';
 
 const builtIn = ['', 'forms.option.builtIn'];
 const unrestricted = ['', 'forms.option.unrestricted'];
 const titles = Object.fromEntries(roles);
 
-export async function chooseNodeRole() {
-  const view = modal('forms.title.chooseNodeRole', 'forms.action.continue');
+export async function chooseNodeRole(kinds = roles.map(([kind]) => kind)) {
+  return choose('forms.title.chooseNodeRole', 'kind', roles.filter(([kind]) => kinds.includes(kind)));
+}
+
+export async function chooseSourceInterface(interfaces) {
+  return choose('graph.chooseInterface', 'source', interfaces.map(device => [device.id, interfaceName(device), false]));
+}
+const interfaceName = device => [device.physicalDeviceName, displayName(device) || device.id].filter(Boolean).join(' · ');
+
+export async function chooseMappingInput(options) {
+  return choose('input.capture.chooseMapping', 'control', options);
+}
+
+async function choose(title, key, options) {
+  const view = modal(title, 'forms.action.continue');
   const grid = el('div', 'form-grid');
   view.body.append(grid);
-  const role = field(grid, 'kind', 'forms.field.kind', 'source', { options: roles });
-  return await view.open(async () => {}) ? role.value : null;
+  const value = field(grid, key, 'forms.field.' + key, options[0][0], { options });
+  value.classList.add('form-choices-column');
+  return await view.open(async () => {}) ? value.value : null;
 }
 
 function connectionField(ctx, moduleId, locked = false) {
@@ -42,6 +56,12 @@ function moduleField(ctx, builtIns, modules) {
   return {
     get value() { return mode.value === pluginMode ? plugin.value : mode.value; },
     get missingPlugin() { return mode.value === pluginMode && !plugin.value; },
+    selectPlugin(id) {
+      if (![...plugin.options].some(option => option.value === id)) return;
+      plugin.value = id;
+      mode.querySelector('input[value="@plugin"]').checked = true;
+      mode.dispatchEvent(new Event('change', { bubbles: true }));
+    },
     addEventListener(event, listener) {
       mode.addEventListener(event, listener);
       plugin.addEventListener(event, listener);
@@ -59,6 +79,18 @@ function sourceForm(ctx) {
   });
   ctx.port('outputType');
   ctx.renderParameters(['source', ...['control', 'phase'].filter(key => Object.hasOwn(ctx.original.settings || {}, key))]);
+  const source = ctx.controls.get('source');
+  const interfaces = ctx.devices.filter(device => device.kind === 'keyboard' || device.kind === 'mouse');
+  if (interfaces.length) addSuggestions(source, 'forms.interface.presets',
+    [['', t('forms.option.unrestricted')], ...interfaces.map(device => [device.id, interfaceName(device)])],
+    value => { if (value && module.value !== 'windows.input') module.selectPlugin('windows.input'); });
+  const control = ctx.controls.get('control');
+  if (control) {
+    const suggest = () => !module.value || module.value === 'windows.input' ? controlSuggestions(ctx, source.value) : [];
+    const update = addSuggestions(control, 'forms.control.presets', suggest());
+    source.addEventListener('change', () => update(suggest()));
+    module.addEventListener('change', () => update(suggest()));
+  }
   return () => {
     if (module.missingPlugin) throw new FormError('forms.error.choosePlugin');
     return { module: module.value, connectionId: connection.value };
@@ -67,7 +99,8 @@ function sourceForm(ctx) {
 
 function eventForm(ctx) {
   const operation = ctx.add('operation', ctx.original.operation, {
-    options: [['match', 'forms.operation.match'], ['sequence', 'forms.operation.sequence']]
+    options: [['match', 'forms.operation.match'], ['chord', 'forms.operation.inputChord'],
+      ['sequence', 'forms.operation.sequence'], ['default', 'forms.operation.default']]
   });
   const connection = connectionField(ctx, 'windows.input', ctx.attached);
   ctx.port('inputType');
@@ -75,10 +108,15 @@ function eventForm(ctx) {
   const render = () => {
     stopCapture?.();
     const sequence = operation.value === 'sequence';
-    connection.closest('.form-row').hidden = !sequence;
+    connection.closest('.form-row').hidden = !sequence && operation.value !== 'chord';
     ctx.renderParameters(parameters('event', operation.value, '', ctx.modules));
     const source = ctx.controls.get('source');
     if (source && ctx.attached) source.readOnly = true;
+    const control = ctx.controls.get('control');
+    if (control && (!ctx.original.module || ctx.original.module === 'windows.input'))
+      addSuggestions(control, 'forms.control.presets', controlSuggestions(ctx, ctx.original.settings?.source));
+    if (source && !ctx.attached) addSuggestions(source, 'forms.interface.presets',
+      ctx.devices.filter(device => device.kind === 'keyboard').map(device => [device.id, interfaceName(device)]));
     if (sequence && ctx.capture) {
       const bar = el('div', 'toolbar');
       ctx.view.body.append(bar);
@@ -92,8 +130,8 @@ function eventForm(ctx) {
   render();
   return () => ({
     operation: operation.value,
-    module: operation.value === 'sequence' ? 'windows.input' : ctx.original.module,
-    connectionId: operation.value === 'sequence' ? connection.value : ctx.original.connectionId
+    module: operation.value === 'default' ? '' : ['sequence', 'chord'].includes(operation.value) ? 'windows.input' : ctx.original.module,
+    connectionId: operation.value === 'default' ? '' : ['sequence', 'chord'].includes(operation.value) ? connection.value : ctx.original.connectionId
   });
 }
 
@@ -111,7 +149,8 @@ function moduleOperationForm(ctx, category, builtInOptions) {
     ctx.modules.filter(item => item[category]?.length || item.id === ctx.original.module));
   const connection = connectionField(ctx, module.value);
   const operation = ctx.add('operation', '', { options: [] });
-  const renderParameters = () => ctx.renderParameters(parameters(ctx.original.kind, operation.value, module.value, ctx.modules));
+  const renderParameters = () => ctx.renderParameters(parameters(ctx.original.kind, operation.value, module.value, ctx.modules),
+    module.value === 'windows.desktop' && operation.value === 'chord');
   const configure = (operationId, connectionId) => {
     const available = ctx.config.connections.filter(item => item.module === module.value && module.value);
     const matchingConnection = available.find(item => item.id === connectionId);
@@ -155,7 +194,7 @@ function scriptForm(ctx) {
 
 const editors = { source: sourceForm, event: eventForm, condition: conditionForm, action: actionForm, transform: transformForm, script: scriptForm };
 
-export function editNode(config, modules, id, save, seed = null, attach = null, capture = null) {
+export function editNode(config, modules, id, save, seed = null, attach = null, capture = null, lockEventSource = !!attach, inventory = {}) {
   const existing = id ? config.nodes.find(node => node.id === id) : null;
   if (id && !existing) throw new FormError('forms.error.nodeMissing');
   const original = structuredClone(existing || {
@@ -186,14 +225,15 @@ export function editNode(config, modules, id, save, seed = null, attach = null, 
   const remember = () => { for (const [key, control] of controls) settings[key] = control.value; };
   const add = (key, value, options) => field(main, key, 'forms.field.' + key, value, { ...options, hint: hints[key] });
   const readRole = editor({
-    original, config, modules, view, capture, attached: !!attach, controls, add,
+    original, config, modules, view, capture, attached: lockEventSource, controls, add,
+    devices: inventory.devices || [], discovered: inventory.discovered || [],
     port(key) { ports.set(key, add(key, original[key] || 'any', { options: types })); },
-    renderParameters(keys) {
+    renderParameters(keys, keyboardShortcut) {
       remember();
       controls.clear();
       forget(parameterGrid);
       parameterGrid.replaceChildren();
-      for (const key of keys) controls.set(key, parameterField(parameterGrid, key, settings[key], original.kind));
+      for (const key of keys) controls.set(key, parameterField(parameterGrid, key, settings[key], original.kind, keyboardShortcut));
       parameterTitle.hidden = keys.length === 0;
     }
   });

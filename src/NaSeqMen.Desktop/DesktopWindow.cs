@@ -5,7 +5,7 @@ using Microsoft.Web.WebView2.WinForms;
 
 namespace NaSeqMen.Desktop;
 
-internal sealed class DesktopWindow : Form
+internal sealed partial class DesktopWindow : Form
 {
     private readonly string _root;
     private readonly DesktopServices _services;
@@ -28,6 +28,12 @@ internal sealed class DesktopWindow : Form
         MinimumSize = new Size(850, 550);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10);
+        RestorePlacement();
+        Resize += (_, _) =>
+        {
+            if (WindowState != FormWindowState.Minimized)
+                _restoreMaximized = WindowState == FormWindowState.Maximized;
+        };
         _startup.Size = ClientSize;
         _message.Width = ClientSize.Width - 16;
         _startup.Controls.AddRange([_message, _retry, _details]);
@@ -64,6 +70,13 @@ internal sealed class DesktopWindow : Form
             core.Settings.AreHostObjectsAllowed = false;
             core.Settings.IsWebMessageEnabled = false;
             core.Settings.IsStatusBarEnabled = false;
+            var integratedCaption = await PrepareCaptionAsync(core);
+            _closing.Token.ThrowIfCancellationRequested();
+            if (integratedCaption)
+            {
+                core.WebMessageReceived += OnCaptionThemeReceived;
+                core.Settings.IsWebMessageEnabled = true;
+            }
             core.NavigationStarting += (_, e) =>
             {
                 if (NavigationPolicy.IsEditor(e.Uri, _services.EditorUri)) return;
@@ -86,6 +99,7 @@ internal sealed class DesktopWindow : Form
                     _startup.Visible = false;
                     _webView.Visible = true;
                     _webView.BringToFront();
+                    if (integratedCaption) ShowIntegratedCaption();
                     _webView.Focus();
                 }
                 else ShowStartupError(new IOException(NativeText.Get("navigationFailed", e.WebErrorStatus)));
@@ -99,6 +113,7 @@ internal sealed class DesktopWindow : Form
     private void ShowStartupError(Exception error)
     {
         _lastError = error;
+        HideIntegratedCaption();
         _message.Text = error is WebView2RuntimeNotFoundException
             ? NativeText.Get("runtimeMissing")
             : NativeText.Get("startupFailed", error.Message);
@@ -126,6 +141,7 @@ internal sealed class DesktopWindow : Form
         e.Cancel = true;
         if (_closingStarted) return;
         _closingStarted = true;
+        SavePlacement();
         _closing.Cancel();
         try
         {

@@ -81,7 +81,11 @@ public sealed partial class InputModule : NaModule, IDiscoveryCapture
             }).ToArray());
     }
 
-    private void Received(RawSample sample) => QueueSample(sample, IsCaptured(sample.DeviceId));
+    private void Received(RawSample sample)
+    {
+        if (sample.Kind == "keyboard" && Volatile.Read(ref _keyboardGuard)?.Filtering == true) return;
+        QueueSample(sample, IsCaptured(sample.DeviceId));
+    }
 
     private void QueueSample(RawSample sample, bool discoveryOnly)
     {
@@ -115,6 +119,24 @@ public sealed partial class InputModule : NaModule, IDiscoveryCapture
                 var dropped = Interlocked.Exchange(ref _dropped, 0);
                 if (dropped != 0) Host.Trace(new(DateTimeOffset.UtcNow, "", "", "error",
                     M("input.dropped", ("count", dropped))));
+                var control = sample.Kind == "keyboard"
+                    ? "key:" + ((sample.Flags & 2) != 0 ? "E0:" : (sample.Flags & 4) != 0 ? "E1:" : "") + sample.ScanCode.ToString("X2")
+                    : sample.Kind + ":" + sample.Control;
+                var value = sample.Phase == "down" ? "1" : sample.Phase == "up" ? "0" :
+                    sample.Control == "move" ? $"{sample.X},{sample.Y}" : sample.Value.ToString(CultureInfo.InvariantCulture);
+                Signal CreateSignal(string connectionId) => new()
+                {
+                    Module = "windows.input", ConnectionId = connectionId, Source = sample.DeviceId,
+                    Control = control, Phase = sample.Phase, Time = capture.Time,
+                    Modifiers = modifierState, IsRepeat = repeat, InputGeneration = generation,
+                    ValueType = sample.Control == "move" || sample.Kind == "device" ? "text" : "number", Value = value
+                };
+                if (sample.DeviceId == DiscoveryCaptureRequest.Keyboard)
+                {
+                    var signal = CreateSignal("");
+                    Host.Trace(new(capture.Time, signal.Id, "", "input", M("input.captured"), signal));
+                    continue;
+                }
                 ConnectionDefinition[] connections;
                 lock (_gate) connections = _connections.Values.ToArray();
                 foreach (var connection in connections)
@@ -123,20 +145,9 @@ public sealed partial class InputModule : NaModule, IDiscoveryCapture
                         !string.Equals(selected, sample.DeviceId, StringComparison.OrdinalIgnoreCase)) continue;
                     if (sample.Control == "move" && (!connection.Settings.TryGetValue("includeMovement", out var movement) ||
                         !bool.TryParse(movement, out var enabled) || !enabled)) continue;
-                    var control = sample.Kind == "keyboard"
-                        ? "key:" + ((sample.Flags & 2) != 0 ? "E0:" : (sample.Flags & 4) != 0 ? "E1:" : "") + sample.ScanCode.ToString("X2")
-                        : sample.Kind + ":" + sample.Control;
-                    var value = sample.Phase == "down" ? "1" : sample.Phase == "up" ? "0" :
-                        sample.Control == "move" ? $"{sample.X},{sample.Y}" : sample.Value.ToString(CultureInfo.InvariantCulture);
                     try
                     {
-                        var signal = new Signal
-                        {
-                            Module = "windows.input", ConnectionId = connection.Id, Source = sample.DeviceId,
-                            Control = control, Phase = sample.Phase, Time = capture.Time,
-                            Modifiers = modifierState, IsRepeat = repeat, InputGeneration = generation,
-                            ValueType = sample.Control == "move" || sample.Kind == "device" ? "text" : "number", Value = value
-                        };
+                        var signal = CreateSignal(connection.Id);
                         if (capture.DiscoveryOnly)
                             Host.Trace(new(capture.Time, signal.Id, "", "input", M("input.captured"), signal));
                         else await Host.PublishAsync(signal, cancellationToken);

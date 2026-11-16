@@ -3,6 +3,8 @@
 html, body { display:block; width:100%; min-width:0; height:100%; overflow:hidden; }
 .lu-shell { width:100%; min-width:0; font-size:14px; }
 .shell-topbar { overflow:visible; }
+.desktop-caption .shell-topbar { padding-right: 136px; -webkit-app-region: drag; app-region: drag; }
+.desktop-caption .shell-topbar :is(button,details,.shell-stats) { -webkit-app-region: no-drag; app-region: no-drag; }
 .shell-stats #connection-state { margin:0; color:inherit; white-space:nowrap; }
 .shell-stats #connection-state.online { color:var(--lu-success); }
 .shell-topbar .shell-brand .ti { font-size:19px; }

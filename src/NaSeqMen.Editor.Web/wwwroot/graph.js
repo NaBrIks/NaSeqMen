@@ -3,6 +3,7 @@ import { t, getLanguage, hasTranslation, onLanguageChange } from './i18n.js';
 import { curvedWire } from './graph/wire-path.js';
 import { layoutDeviceSections, sectionHeight } from './graph/device-sections.js';
 import { projectDestinations } from './graph/destinations.js';
+import { sectionControls } from './graph/section-controls.js';
 export { layoutGraph } from './graph/layout.js';
 const NS = 'http://www.w3.org/2000/svg';
 const lanes = ['graph.lane.sources', 'graph.lane.events', 'graph.lane.conditions', 'graph.lane.processing', 'graph.lane.actions', 'graph.lane.destinations'];
@@ -10,7 +11,8 @@ const portTypeKeys = { any: 'graph.portType.any', number: 'graph.portType.number
 const phaseKeys = { down: 'graph.phase.down', up: 'graph.phase.up', change: 'graph.phase.change' };
 const operationNames = { equals: 'graph.operation.equals', scale: 'graph.operation.scale', text: 'graph.operation.text', key: 'graph.operation.key', chord: 'graph.operation.chord', launch: 'graph.operation.launch', foreground: 'graph.operation.foreground', processRunning: 'graph.operation.processRunning', startRecord: 'graph.operation.startRecord', stopRecord: 'graph.operation.stopRecord', toggleRecord: 'graph.operation.toggleRecord', setMute: 'graph.operation.setMute', toggleMute: 'graph.operation.toggleMute', setVolume: 'graph.operation.setVolume', setScene: 'graph.operation.setScene', request: 'graph.operation.request' };
 let nextGraph = 0;
-const modeIcons = { live: '\ued46', test: '\uebd2', off: '\ued45' };
+const modePaths = { play: 'M8 5l12 7-12 7z', pause: 'M9 5v14m6-14v14' };
+const addKinds = [['source'], ['event'], ['condition'], ['transform', 'script'], ['action'], ['action']];
 
 function svgElement(tag, attributes = {}, text) {
   const element = document.createElementNS(NS, tag);
@@ -39,8 +41,14 @@ function portTypeLabel(node, direction) {
 
 export function compatiblePorts(from, to) {
   if (!from || !to || from.id === to.id || from.kind === 'action' || to.kind === 'source') return false;
-  const output = portType(from, 'out'), input = portType(to, 'in');
+  const miss = eventMissLink(from, to);
+  if (to.kind === 'event' && to.operation === 'default' && !miss) return false;
+  const output = portType(from, miss ? 'in' : 'out'), input = portType(to, 'in');
   return output === 'any' || input === 'any' || output === input;
+}
+
+export function eventMissLink(from, to) {
+  return from.kind === 'event' && from.operation !== 'default' && to.kind === 'event';
 }
 
 export class GraphView {
@@ -58,6 +66,9 @@ export class GraphView {
     this.nodeElements = new Map();
     this.edgeElements = new Map();
     this.timers = new Map();
+    this.pendingModes = new Set();
+    this.addTargets = new Map();
+    this.titleMeasure = document.createElement('canvas').getContext('2d');
     this.id = `graph-${++nextGraph}`;
     container.classList.add('graph-host');
     this.svg = svgElement('svg', { class: 'graph-surface', role: 'group' });
@@ -125,10 +136,11 @@ export class GraphView {
   render() {
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
-    this.nodeElements.clear(); this.edgeElements.clear();
+    this.nodeElements.clear(); this.edgeElements.clear(); this.addTargets.clear();
     this.container.setAttribute('aria-label', t('graph.accessibleName'));
     this.svg.setAttribute('lang', getLanguage());
     this.svg.setAttribute('data-tooltip', t('graph.help'));
+    this.titleMeasure.font = getComputedStyle(this.svg).font;
     const cellPadding = parseFloat(getComputedStyle(this.container).getPropertyValue('--cell-y')) || 3;
     const projected = projectDestinations(this.configuration, this.modules);
     this.actionTargets = projected.destinations;
@@ -153,6 +165,7 @@ export class GraphView {
     if (this.selectedEdge && (!nodes.has(this.selectedEdge.from) || !nodes.has(this.selectedEdge.to))) this.selectEdge(null);
     for (const { edge, path, offset } of edges) {
       const line = svgElement('path', { class: 'graph-wire', d: path, 'marker-end': `url(#${this.id}-arrow)` });
+      if (edge.outcome === 'miss') line.setAttribute('stroke-dasharray', '5 3');
       const key = JSON.stringify([edge.from, edge.to]);
       this.edgeElements.set(key, line);
       if (edge.delivery) {
@@ -163,7 +176,9 @@ export class GraphView {
         continue;
       }
       const label = `${nodes.get(edge.from).node.name} → ${nodes.get(edge.to).node.name}`;
-      const wire = svgElement('g', { class: 'graph-edge', role: 'button', tabindex: '0', 'aria-label': label, 'data-tooltip': label + '\n' + t('graph.wireHelp') });
+      const caption = nodes.get(edge.from).node.kind === 'event'
+        ? label + ' · ' + t(edge.outcome === 'miss' ? 'forms.outcome.miss' : 'forms.outcome.match') : label;
+      const wire = svgElement('g', { class: 'graph-edge', role: 'button', tabindex: '0', 'aria-label': caption, 'data-tooltip': caption + '\n' + t('graph.wireHelp') });
       if (offset) wire.setAttribute('transform', `translate(0 ${offset})`);
       wire.append(svgElement('path', { class: 'graph-wire-hit', d: path }), line);
       wire.addEventListener('click', () => { this.selectEdge(edge); wire.focus(); });
@@ -183,8 +198,54 @@ export class GraphView {
       if (bounds.node.kind === 'destination') this.renderDestination(bounds);
       else this.renderNode(bounds);
     }
+    for (const row of this.layout.addRows) this.renderAddRow(row, laneWidth);
     if (!nodes.size && !sections.length) this.svg.append(svgElement('text', { class: 'graph-empty', x: 18, y: 66 }, t('graph.empty')));
     if (this.wireStart && nodes.has(this.wireStart)) this.markCompatible();
+  }
+
+  renderAddRow({ sectionId, y }, laneWidth) {
+    for (const [lane, kinds] of addKinds.entries()) {
+      const x = (lane + .5) * laneWidth;
+      const label = t(lane === 5 ? 'graph.addDestination' : 'graph.addInLane', { lane: t(lanes[lane]) });
+      const target = { sectionId, lane, kinds, point: { x: x - 13, y } };
+      const control = svgElement('g', { class: 'graph-add', role: 'button', tabindex: 0,
+        'aria-label': label, 'data-tooltip': label, 'data-add-lane': lane });
+      control.append(
+        svgElement('rect', { class: 'graph-add-hit', x: x - 23, y: y - 13, width: 43, height: 26 }),
+        svgElement('circle', { class: 'graph-add-ring', cx: x, cy: y, r: 9 }),
+        svgElement('path', { d: `M${x - 4} ${y}h8m-4 -4v8` }),
+        svgElement('circle', { class: 'graph-add-dock', cx: target.point.x, cy: y, r: 3 })
+      );
+      this.addTargets.set(control, target);
+      const activate = event => {
+        event.stopPropagation();
+        if (!this.suppressClick) this.addAt(target);
+      };
+      control.addEventListener('click', activate);
+      control.addEventListener('keydown', event => {
+        if (!['Enter', ' '].includes(event.key)) return;
+        event.preventDefault();
+        activate(event);
+      });
+      this.svg.append(control);
+    }
+  }
+
+  canDropAt(target) {
+    const origin = this.layout.nodes.get(this.wireStart);
+    return origin && origin.sectionId === target.sectionId && origin.lane < target.lane;
+  }
+
+  addAt(target) {
+    const from = this.wireStart;
+    if ((from && !this.canDropAt(target)) || (!from && target.sectionId && target.lane !== 0)) {
+      this.cancelWire();
+      this.callbacks.onError?.(t('graph.addSelectOutput'));
+      return;
+    }
+    this.cancelWire();
+    Promise.resolve(this.callbacks.onAdd?.(target.kinds, from, target.sectionId))
+      .catch(error => this.callbacks.onError?.(error));
   }
 
   renderSection(section, width) {
@@ -193,29 +254,28 @@ export class GraphView {
       : kinds.has('mouse') ? t('ui.mouse') : kinds.has('keyboard') ? t('graph.device.keyboard') : t('graph.device.generic');
     const label = id ? (name ? name + ' · ' + type : type) : t('graph.device.other');
     const sectionElement = svgElement('g', { class: 'graph-section', 'aria-label': label });
-    if (id) {
-      sectionElement.setAttribute('tabindex', '0');
-      sectionElement.setAttribute('role', 'button');
-      sectionElement.setAttribute('aria-expanded', String(!closed));
-      sectionElement.dataset.tooltip = t('graph.device.toggle', { name: label });
-      const toggle = () => {
-        if (closed) this.collapsedDevices.delete(id);
-        else this.collapsedDevices.add(id);
-        this.cancelWire();
-        const index = this.layout.sections.indexOf(section);
-        this.render();
-        this.svg.querySelectorAll('.graph-section')[index]?.focus();
-      };
-      sectionElement.addEventListener('click', toggle);
-      sectionElement.addEventListener('keydown', event => {
-        if (!['Enter', ' '].includes(event.key)) return;
-        event.preventDefault();
-        toggle();
-      });
-    }
+    const index = this.layout.sections.indexOf(section);
+    const focus = control => this.svg.querySelectorAll('.graph-section')[index]?.querySelector(`[data-section-control="${control}"]`)?.focus();
+    const toggle = () => {
+      if (closed) this.collapsedDevices.delete(id);
+      else this.collapsedDevices.add(id);
+      this.cancelWire();
+      this.render();
+      focus('collapse');
+    };
+    const setMode = async mode => {
+      if (this.sectionModePending) return;
+      this.sectionModePending = true;
+      try {
+        await this.callbacks.onSectionMode?.(section.sources.map(source => source.id), mode);
+        focus(mode);
+      } catch (error) { this.callbacks.onError?.(error); }
+      finally { this.sectionModePending = false; }
+    };
     sectionElement.append(
       svgElement('rect', { x: 0, y, width, height: sectionHeight }),
-      svgElement('text', { x: 10, y: y + 18 }, (id ? (closed ? '▸  ' : '▾  ') : '') + shortText(label, width - 24))
+      ...sectionControls(svgElement, section, label, toggle, setMode),
+      svgElement('text', { x: 108, y: y + 18 }, shortText(label, width - 120))
     );
     this.svg.append(sectionElement);
   }
@@ -224,16 +284,25 @@ export class GraphView {
     const { node, x, y, width, height } = bounds;
     const detail = (node.previewOnly ? t('graph.previewMode') + ' · ' : '') + this.detail(node);
     const group = svgElement('g', {
-      class: `graph-node${this.selected === node.id ? ' graph-selected' : ''}${node.enabled === false ? ' graph-disabled' : ''}${node.previewOnly ? ' graph-preview-only' : ''}`,
+      class: `graph-node${this.selected === node.id ? ' graph-selected' : ''}${node.enabled === false ? ' graph-disabled' : ''}${node.previewOnly && node.enabled !== false ? ' graph-preview-only' : ''}`,
       tabindex: 0, role: 'button', 'aria-pressed': String(this.selected === node.id), 'aria-label': t('graph.nodeLabel', { name: node.name || t('graph.unnamed'), detail })
     });
     group.dataset.nodeId = node.id;
     group.dataset.nodeRole = node.kind;
     group.setAttribute('data-tooltip', `${node.name || t('graph.unnamed')}\n${detail}\n${node.enabled === false ? t('graph.disabled') + '\n' : ''}${t('graph.nodeHelp')}`);
     group.append(svgElement('rect', { class: 'graph-node-box', x, y, width, height }));
-    group.append(svgElement('text', { class: 'graph-node-title', x: x + 9, y: y + height / 2 - 5 }, shortText(node.name || t('graph.unnamed'), width - 35)));
+    const title = node.name || t('graph.unnamed');
+    const available = width - 53;
+    let visibleTitle = title;
+    if (this.titleMeasure.measureText(title).width > available) {
+      const characters = Array.from(title).slice(0, Math.ceil(available / 3));
+      while (characters.length && this.titleMeasure.measureText(characters.join('') + '…').width > available)
+        characters.pop();
+      visibleTitle = characters.join('') + '…';
+    }
+    group.append(svgElement('text', { class: 'graph-node-title', x: x + 9, y: y + height / 2 - 5 }, visibleTitle));
     group.append(svgElement('text', { class: 'graph-node-detail', x: x + 9, y: y + height / 2 + 12 }, shortText(detail, width - 18, 6.2)));
-    group.append(this.renderModeControl(bounds));
+    group.append(this.renderModeControls(bounds));
     group.addEventListener('click', event => { if (!event.target.closest('[data-port],.graph-mode')) this.select(node.id); });
     group.addEventListener('dblclick', event => { if (!event.target.closest('[data-port],.graph-mode')) { this.cancelWire(); this.callbacks.onEdit?.(node); } });
     group.addEventListener('keydown', event => {
@@ -250,36 +319,46 @@ export class GraphView {
     this.svg.append(group);
   }
 
-  renderModeControl({ node, x, y, width, height }) {
-    const canTest = ['source', 'action'].includes(node.kind);
+  renderModeControls({ node, x, y, width }) {
     const current = node.enabled === false ? 'off' : node.previewOnly ? 'test' : 'live';
-    const target = current === 'off' ? 'live' : current === 'live' && canTest ? 'test' : 'off';
-    const label = t('graph.nodeMode.toggle', {
-      name: node.name, current: t('graph.nodeMode.' + current), next: t('graph.nodeMode.' + target)
-    });
-    const control = svgElement('g', { class: 'graph-mode', role: 'button', tabindex: 0, 'aria-label': label,
-      'data-tooltip': label, 'data-mode': current });
-    control.append(
-      svgElement('rect', { x: x + width - 21, y: y + 3, width: 18, height: 21 }),
-      svgElement('text', { x: x + width - 12, y: y + height / 2 - 5, 'aria-hidden': 'true' }, modeIcons[current])
-    );
-    const setMode = async event => {
-      event.stopPropagation();
-      if (control.getAttribute('aria-disabled') === 'true') return;
-      control.setAttribute('aria-disabled', 'true');
-      try {
-        await this.callbacks.onMode?.(node.id, target);
-        this.nodeElements.get(node.id)?.querySelector('.graph-mode')?.focus();
-      } catch (error) { this.callbacks.onError?.(error); }
-      finally { control.removeAttribute('aria-disabled'); }
-    };
-    control.addEventListener('click', setMode);
-    control.addEventListener('keydown', event => {
-      if (!['Enter', ' '].includes(event.key)) return;
-      event.preventDefault();
-      setMode(event);
-    });
-    return control;
+    const controls = svgElement('g', { class: 'graph-mode-controls', 'data-mode': current });
+    for (const [action, offset] of [['play', 39], ['pause', 21]]) {
+      const enabled = action === 'play';
+      const selected = enabled === (current !== 'off');
+      const label = t('graph.nodeMode.' + action, { name: node.name || t('graph.unnamed') });
+      const control = svgElement('g', {
+        class: 'graph-mode', role: 'button', tabindex: 0, 'aria-label': label, 'aria-pressed': selected,
+        'data-tooltip': label + ' · ' + t('graph.nodeMode.' + current), 'data-action': action
+      });
+      if (this.pendingModes.has(node.id)) control.setAttribute('aria-disabled', 'true');
+      control.append(
+        svgElement('rect', { x: x + width - offset, y: y + 3, width: 17, height: 21, rx: 2 }),
+        svgElement('path', { d: modePaths[action], transform: `translate(${x + width - offset + 1.5} ${y + 6}) scale(.58)`, 'aria-hidden': 'true' })
+      );
+      const setMode = async event => {
+        event.stopPropagation();
+        if (selected || this.pendingModes.has(node.id)) return;
+        this.pendingModes.add(node.id);
+        for (const button of controls.children) button.setAttribute('aria-disabled', 'true');
+        try {
+          await this.callbacks.onMode?.(node.id, enabled);
+          this.nodeElements.get(node.id)?.querySelector(`.graph-mode[data-action="${action}"]`)?.focus();
+        } catch (error) { this.callbacks.onError?.(error); }
+        finally {
+          this.pendingModes.delete(node.id);
+          for (const button of this.nodeElements.get(node.id)?.querySelectorAll('.graph-mode') ?? [])
+            button.removeAttribute('aria-disabled');
+        }
+      };
+      control.addEventListener('click', setMode);
+      control.addEventListener('keydown', event => {
+        if (!['Enter', ' '].includes(event.key)) return;
+        event.preventDefault();
+        setMode(event);
+      });
+      controls.append(control);
+    }
+    return controls;
   }
 
   renderDestination({ node, x, y, width, height, inputs }) {
@@ -301,6 +380,10 @@ export class GraphView {
   detail(node) {
     if (node.kind === 'event' && node.operation === 'sequence')
       return node.settings?.eventName || t('forms.operation.sequence');
+    if (node.kind === 'event' && node.operation === 'chord')
+      return t('forms.operation.inputChord') + ' · ' + node.settings.modifiers;
+    if (node.kind === 'event' && node.operation === 'default')
+      return t('forms.operation.default');
     if (node.kind === 'condition' && node.operation === 'modifierHeld')
       return t('forms.operation.modifierHeld') + ' · ' + t('forms.modifier.' + node.settings.modifier);
     if (node.kind === 'source') {
@@ -365,6 +448,7 @@ export class GraphView {
       group.classList.toggle('graph-compatible', compatiblePorts(from, target));
       group.classList.toggle('graph-wire-source', id === this.wireStart);
     }
+    for (const [control, target] of this.addTargets) control.classList.toggle('graph-add-compatible', !!this.canDropAt(target));
   }
 
   pointerMove(event) {
@@ -374,7 +458,9 @@ export class GraphView {
     if (!start) return;
     const transform = this.svg.getScreenCTM();
     if (!transform) return;
-    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(transform.inverse());
+    const target = this.addTargets.get(event.target.closest('.graph-add'));
+    const point = target && this.canDropAt(target) ? target.point
+      : new DOMPoint(event.clientX, event.clientY).matrixTransform(transform.inverse());
     this.preview.removeAttribute('hidden');
     this.preview.setAttribute('d', curvedWire([start, point]));
   }
@@ -382,8 +468,10 @@ export class GraphView {
   pointerUp(event) {
     if (!this.dragging) { this.dragStart = null; return; }
     const target = event.target.closest('[data-port="in"]');
+    const addTarget = this.addTargets.get(event.target.closest('.graph-add'));
     this.suppressClick = true;
     if (target) this.completeWire(target.dataset.nodeId);
+    else if (addTarget && this.canDropAt(addTarget)) this.addAt(addTarget);
     else this.cancelWire();
     // A drag ending on another element may not produce a click at all.
     setTimeout(() => { this.suppressClick = false; }, 0);
@@ -397,13 +485,15 @@ export class GraphView {
     this.cancelWire();
     if (!compatiblePorts(from, to)) { this.callbacks.onError?.(t('graph.error.incompatible')); return; }
     if (this.configuration.edges.some(edge => edge.from === startId && edge.to === targetId)) { this.callbacks.onError?.(t('graph.error.duplicate')); return; }
-    Promise.resolve(this.callbacks.onLink?.(startId, targetId)).catch(error => this.callbacks.onError?.(error.message || String(error)));
+    Promise.resolve(this.callbacks.onLink?.(startId, targetId, eventMissLink(from, to) ? 'miss' : 'match'))
+      .catch(error => this.callbacks.onError?.(error.message || String(error)));
   }
 
   cancelWire() {
     this.wireStart = null; this.wireOrigin = null; this.dragStart = null; this.dragging = false;
     this.preview?.setAttribute('hidden', '');
     for (const group of this.nodeElements.values()) group.classList.remove('graph-compatible', 'graph-wire-source');
+    for (const control of this.addTargets.keys()) control.classList.remove('graph-add-compatible');
   }
 
   flash(diagnostic) {

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
-import { GraphView } from './graph.js';
-import { chooseNodeRole, editNode, editConnection, editMapping, editLinks, injectEvent, showDetails } from './forms.js';
+import { GraphView, portType, eventMissLink } from './graph.js';
+import { chooseNodeRole, chooseSourceInterface, chooseMappingInput, editNode, editConnection, editMapping, editLinks, injectEvent, showDetails } from './forms.js';
 import { t, getLanguage, onLanguageChange, bindTranslations, registerTranslations, localizeMessage, displayName } from './i18n.js';
 import { initializeShell, updateConnections, selectSettingsConnection } from './shell.js';
 import { createConnectionSettings } from './connection-settings.js';
 import { createEventDraft, windowsExplorerSteps } from './input/event-drafts.js';
 import { SequenceCapture } from './input/sequence-capture.js';
-import { DiscoveryCapture } from './input/discovery-capture.js';
+import { DiscoveryCapture, keyboardCaptureSource } from './input/discovery-capture.js';
+import { keyName, isModifierKey, heldModifierNames, modifierGroups } from './input/key-labels.js';
 import { editOutputModes, renderOutputMode } from './forms/output-modes.js';
 
 const $ = id => document.getElementById(id);
@@ -14,18 +15,47 @@ const state = { config: { nodes: [], edges: [], connections: [], mappings: [], d
 let lastMessage = '', traceSequence = 0, logFrame = 0;
 let configurationLoaded = false;
 const inputGroups = new Map();
-const sequenceCapture = new SequenceCapture();
 let capturedInterfaces = new Set();
+let discoveryModifiers = null;
 const discoveryCapture = new DiscoveryCapture(
   request => api('devices/capture', 'POST', request, { keepalive: true }),
-  active => { capturedInterfaces = active; devicesTable.render(); },
+  active => {
+    capturedInterfaces = active;
+    if (!active.size) {
+      renderModifiers(null);
+      for (const input of state.inputs.values()) clearHighlight(input);
+    }
+    devicesTable.render(); updateDiscoveryIndicator();
+  },
   error => status(error, true)
 );
+const sequenceCapture = new SequenceCapture(discoveryCapture);
 function updateDiscoveryCapture() {
   const available = state.connected && !$('tab-devices').hidden
     ? state.devices.filter(device => ['mouse', 'keyboard'].includes(device.kind) && state.watch.has(device.id))
       .map(device => device.id) : [];
   discoveryCapture.select(available);
+  updateDiscoveryIndicator();
+}
+function updateDiscoveryIndicator() {
+  const active = capturedInterfaces.has(keyboardCaptureSource);
+  const status = $('discovery-guard');
+  const key = active ? 'input.capture.keyboardBlocked'
+    : state.watch.size && discoveryCapture.allowEditing ? 'input.capture.keyboardEditing'
+    : state.watch.size ? 'input.capture.keyboardUnconfirmed' : 'input.capture.keyboardIdle';
+  status.dataset.state = active ? 'blocked' : state.watch.size && !discoveryCapture.allowEditing ? 'unconfirmed' : 'idle';
+  status.setAttribute('aria-label', t(key));
+  tip(status, key);
+}
+document.addEventListener('naseqmen:form-state', updateDiscoveryIndicator);
+
+function renderModifiers(modifiers) {
+  discoveryModifiers = modifiers;
+  const names = heldModifierNames(modifiers?.globalHeld);
+  const value = $('discovery-modifiers');
+  value.textContent = t('input.capture.modifiers') + ' · ' + (names.join(' + ') || '—');
+  value.dataset.held = String(names.length > 0);
+  tip(value, 'input.capture.modifiersHelp');
 }
 function discoverConfiguredDevices() {
   const sources = new Set(state.config.nodes.filter(node => node.kind === 'source' && node.module === 'windows.input')
@@ -81,20 +111,30 @@ async function save(config) {
 const graph = new GraphView($('graph'), {
   onSelect(node) { state.selected = typeof node === 'string' ? node : node?.id; const selected = state.config.nodes.find(n => n.id === state.selected); $('selected-node').textContent = selected?.name || t('ui.select_a_node'); },
   onEdit(node) { openNode(typeof node === 'string' ? node : node.id).catch(error => status(error, true)); },
-  async onMode(id, mode) {
+  onAdd: addGraphNode,
+  async onSectionMode(sources, mode) {
+    const selected = new Set(sources);
+    const config = structuredClone(state.config);
+    for (const source of config.nodes) {
+      if (source.kind !== 'source' || !selected.has(source.id)) continue;
+      source.enabled = mode !== 'pause';
+      if (source.enabled) source.previewOnly = mode === 'debug';
+    }
+    await save(config);
+  },
+  async onMode(id, enabled) {
     const config = structuredClone(state.config);
     const node = config.nodes.find(item => item.id === id);
     if (!node) return;
-    node.enabled = mode !== 'off';
-    node.previewOnly = mode === 'test';
+    node.enabled = enabled;
     await save(config);
   },
   onEdgeSelect(edge) { $('delete-link').disabled = !edge; },
   onRemoveEdge(edge) { removeEdge(edge).catch(error => status(error, true)); },
-  async onLink(from, to) {
+  async onLink(from, to, outcome) {
     try {
       const config = structuredClone(state.config); if (config.edges.some(e => e.from === from && e.to === to)) throw new Error(t('ui.this_link_already_exists'));
-      config.edges.push({ from, to }); await save(config);
+      config.edges.push({ from, to, outcome }); await save(config);
     } catch (error) { status(error, true); }
   }, onError: message => status(message, true)
 });
@@ -117,7 +157,8 @@ class Table {
     for (const column of columns) {
       const col = el('col'); col.style.width = column.width + 'px'; cols.append(col);
       const th = el('th');
-      if (!column.key) { th.textContent = t(column.label || ''); th.dataset.i18n = column.label || ''; }
+      if (column.header) th.append(column.header());
+      else if (!column.key) { th.textContent = t(column.label || ''); th.dataset.i18n = column.label || ''; }
       else {
         const sort = tip(el('button', column.label), t(column.help || column.label) + '\n' + t('ui.click_to_sort'));
         sort.dataset.i18n = column.label;
@@ -184,7 +225,7 @@ const devicesTable = new Table($('devices'), [
   { label: 'ui.device_path', key: 'hardwareId', width: 460, help: 'ui.exact_windows_interface_identity' }
 ]);
 const mappingsTable = new Table($('mappings'), [
-  { width: 30, render: row => editButton(() => editMapping(state.config, row.id, null, save)) },
+  { width: 30, header: mappingAddButton, render: row => editButton(() => editMapping(state.config, row.id, null, save)) },
   { label: 'ui.button_name', key: 'name', width: 200 }, { label: 'ui.original_code', key: 'control', width: 150 },
   { label: 'ui.policy', key: 'policy', width: 100, help: 'ui.map_use_a_name_in_the_graph_observe' },
   { label: 'ui.interface', key: 'source', width: 450 }
@@ -203,7 +244,26 @@ const logsTable = new Table($('logs'), [
 ], { tail: true, empty: 'ui.new_events_appear_here_double_click_a_row', rowClick: row => showDetails(t('ui.diagnostics'), [row.time, row.node, row.stage, row.message, row.data].join('\n')) });
 
 function time(value) { const d = new Date(value); return d.toLocaleTimeString(getLanguage() === 'en' ? 'en-GB' : 'ru-RU', { hour12: false }) + '.' + String(d.getMilliseconds()).padStart(3, '0'); }
-function controlName(control) { const name = ({ 'mouse:button1': 'ui.left', 'mouse:button2': 'ui.right', 'mouse:button3': 'ui.middle', 'mouse:button4': 'ui.side_1', 'mouse:button5': 'ui.side_2', 'mouse:wheel': 'ui.wheel', 'mouse:horizontalWheel': 'ui.wheel_2' })[control]; return name ? t(name) : control.replace(/^key:/, t('ui.key') + ' '); }
+function controlName(control) { const name = ({ 'mouse:button1': 'ui.left', 'mouse:button2': 'ui.right', 'mouse:button3': 'ui.middle', 'mouse:button4': 'ui.side_1', 'mouse:button5': 'ui.side_2', 'mouse:wheel': 'ui.wheel', 'mouse:horizontalWheel': 'ui.wheel_2' })[control]; return name ? t(name) : keyName(control) || control.replace(/^key:.*/, t('ui.key')); }
+function mappingAddButton() {
+  const button = el('button', null, 'row-action icon-only');
+  button.id = 'add-discovery-mapping';
+  button.dataset.i18nLabel = button.dataset.i18nTooltip = 'input.capture.addMapping';
+  button.append(el('i', null, 'ti ti-plus'));
+  button.firstChild.setAttribute('aria-hidden', 'true');
+  button.addEventListener('click', async () => {
+    try {
+      const inputs = [...state.inputs.values()].filter(input => input.source !== keyboardCaptureSource);
+      const options = inputs.map((input, index) => {
+        const device = state.devices.find(item => item.id === input.source);
+        return [String(index), [displayName(device), controlName(input.control), input.control].filter(Boolean).join(' · '), false];
+      });
+      const selected = options.length ? await chooseMappingInput(options) : undefined;
+      if (selected !== null) await editMapping(state.config, null, selected === undefined ? null : inputs[Number(selected)], save);
+    } catch (error) { status(error, true); }
+  });
+  return button;
+}
 function clearHighlight(input) { clearTimeout(input.timer); input.button.classList.remove('pressed', 'pulse'); }
 function inputGroup(input) {
   let group = inputGroups.get(input.source);
@@ -213,33 +273,79 @@ function inputGroup(input) {
     group = { section, title, events }; inputGroups.set(input.source, group);
   }
   const device = state.devices.find(d => d.id === input.source);
-  group.title.textContent = (device ? displayName(device) : t(input.kind === 'mouse' ? 'ui.mouse' : 'ui.keyb')) + ' · ' + input.number;
-  tip(group.title, input.source);
+  group.title.textContent = input.source === keyboardCaptureSource ? t('input.capture.allKeyboards')
+    : (device ? displayName(device) : t(input.kind === 'mouse' ? 'ui.mouse' : 'ui.keyb')) + ' · ' + input.number;
+  tip(group.title, input.source === keyboardCaptureSource ? 'input.capture.allKeyboardsHelp' : input.source);
   return group;
 }
-function addInputToGraph(input) {
-  const mapping = state.config.mappings.find(m => m.source === input.source && m.control === input.control);
+function keyboardConnection(source) {
+  return state.config.connections.find(item => item.enabled && item.module === 'windows.input' &&
+    item.settings?.devicePath?.toLowerCase() === source.toLowerCase()) ||
+    state.config.connections.find(item => item.enabled && item.module === 'windows.input' && !item.settings?.devicePath);
+}
+
+async function addInputToGraph(input) {
+  let source = input.source, connectionId = input.connectionId || '';
+  if (source === keyboardCaptureSource) {
+    const keyboards = state.devices.filter(device => device.kind === 'keyboard' && keyboardConnection(device.id));
+    if (!keyboards.length) return status('input.capture.noKeyboardSource', true);
+    source = await chooseSourceInterface(keyboards);
+    if (!source) return;
+    connectionId = keyboardConnection(source)?.id || '';
+  }
+  const mapping = state.config.mappings.find(m => m.source === source && m.control === input.control);
   const name = mapping?.name || controlName(input.control);
-  const device = state.devices.find(item => item.id === input.source);
-  return openEventDraft({ ...input, connectionId: input.connectionId || '', name: displayName(device) },
-    name, 'match', { control: mapping?.policy === 'map' ? mapping.name : input.control, phase: '' });
+  const device = state.devices.find(item => item.id === source);
+  const endpoint = { source, module: input.module, connectionId, name: displayName(device) };
+  if (input.chord)
+    return openEventDraft(endpoint, input.chord, 'chord', { control: input.control, modifiers: input.modifiers });
+  return openEventDraft(endpoint, name, 'match', { control: mapping?.policy === 'map' ? mapping.name : input.control, phase: input.kind === 'keyboard' ? 'down' : '' });
 }
 
 function openEventDraft(endpoint, name, operation, settings) {
   const { seed, attach } = createEventDraft(state.config, endpoint, name, operation, settings);
-  return editNode(state.config, state.modules, null, save, seed, attach, sequenceCapture);
+  return editGraphNode(null, seed, attach);
 }
 
 function openNode(id) {
-  return editNode(state.config, state.modules, id, save, null, null, sequenceCapture);
+  return editGraphNode(id);
+}
+
+function editGraphNode(id, seed = null, attach = null, lockEventSource = !!attach) {
+  return editNode(state.config, state.modules, id, save, seed, attach, sequenceCapture, lockEventSource,
+    { devices: state.devices, discovered: [...state.inputs.values()] });
+}
+
+async function addGraphNode(kinds, from, sectionId) {
+  const kind = kinds.length === 1 ? kinds[0] : await chooseNodeRole(kinds);
+  if (!kind) return;
+  const seed = { kind };
+  const upstream = from ? state.config.nodes.find(node => node.id === from) : null;
+  if (from && !upstream) return status('forms.error.nodeMissing', true);
+  const outcome = upstream && eventMissLink(upstream, seed) ? 'miss' : 'match';
+  if (upstream) {
+    seed.inputType = portType(upstream, outcome === 'miss' ? 'in' : 'out');
+    if (kind === 'transform' && !['number', 'any'].includes(seed.inputType)) seed.operation = 'text';
+    if (kind === 'event' && upstream.kind === 'source' && upstream.module === 'windows.input') {
+      seed.connectionId = upstream.connectionId;
+      seed.settings = { source: upstream.settings?.source || '' };
+    }
+  }
+  if (kind === 'source' && sectionId) {
+    const interfaces = state.devices.filter(device => device.physicalDeviceId === sectionId && ['mouse', 'keyboard'].includes(device.kind));
+    const selected = interfaces.length > 1 ? await chooseSourceInterface(interfaces) : interfaces[0]?.id;
+    if (!selected) return;
+    const device = interfaces.find(item => item.id === selected);
+    Object.assign(seed, { name: displayName(device), module: 'windows.input', settings: { source: selected } });
+  }
+  const attach = upstream ? (candidate, id) => candidate.edges.push({ from, to: id, outcome }) : null;
+  return editGraphNode(null, seed, attach, false);
 }
 
 function sequenceButton(device) {
   const box = el('span');
   if (device.kind !== 'keyboard') return box;
-  const connection = state.config.connections.find(item => item.enabled && item.module === 'windows.input' &&
-    item.settings?.devicePath?.toLowerCase() === device.id.toLowerCase()) ||
-    state.config.connections.find(item => item.enabled && item.module === 'windows.input' && !item.settings?.devicePath);
+  const connection = keyboardConnection(device.id);
   const button = tip(el('button', 'ui.add_sequence', 'row-action'), 'ui.sequence_help');
   button.disabled = !connection || !state.connected;
   button.addEventListener('click', () => openEventDraft(
@@ -251,31 +357,47 @@ function sequenceButton(device) {
 }
 function updateInput(input) {
   const mapping = state.config.mappings.find(m => m.source === input.source && m.control === input.control);
-  input.button.textContent = mapping?.name || controlName(input.control);
+  input.label.textContent = input.chord || mapping?.name || controlName(input.control);
   inputGroup(input);
   input.add.setAttribute('aria-label', t('ui.add_event_to_graph')); tip(input.add, 'ui.add_event_to_graph');
-  tip(input.button, input.button.textContent + '\n' + t('ui.last_signal') + ' ' + t(({ down: 'ui.pressed', up: 'ui.released', change: 'ui.changed' }[input.phase] || input.phase)) + ' · ' + input.value + ' · ' + input.time + '\n' + t('ui.code') + ' ' + input.control + '\n' + t('ui.interface_2') + ' ' + input.source + '\n' + t('ui.click_for_details_and_to_assign_a_name'));
+  const detail = input.source === keyboardCaptureSource ? t('input.capture.allKeyboardsHelp')
+    : t('ui.interface_2') + ' ' + input.source;
+  tip(input.button, input.label.textContent + '\n' + t('ui.last_signal') + ' ' + t(({ down: 'ui.pressed', up: 'ui.released', change: 'ui.changed' }[input.phase] || input.phase)) + ' · ' + input.value + ' · ' + input.time + '\n' + t('ui.code') + ' ' + input.control + '\n' + detail);
 }
 function discovered(signal, timestamp) {
-  if (!state.watch.has(signal.source)) return;
-  const key = JSON.stringify([signal.source, signal.control]); let input = state.inputs.get(key);
+  if (discoveryCapture.allowEditing || $('tab-devices').hidden) return;
+  const allKeyboards = signal.source === keyboardCaptureSource;
+  if (!state.watch.has(signal.source) && !allKeyboards) return;
+  recordDiscovered(signal, timestamp);
+  if (signal.phase !== 'down' || signal.isRepeat || !signal.control.startsWith('key:') || isModifierKey(signal.control)) return;
+  const modifiers = modifierGroups(signal.modifiers?.sourceHeld).join('+');
+  if (modifiers) recordDiscovered(signal, timestamp, modifiers);
+}
+
+function recordDiscovered(signal, timestamp, modifiers = '') {
+  const key = JSON.stringify([signal.source, signal.control, modifiers]); let input = state.inputs.get(key);
   if (!input) {
     if (state.inputs.size >= 512) { status('ui.the_panel_contains_512_distinct_inputs_clear_the', true); return; }
-    const device = state.devices.find(d => d.id === signal.source); if (!device) return;
+    const device = state.devices.find(d => d.id === signal.source) ||
+      (signal.source === keyboardCaptureSource ? { kind: 'keyboard' } : null);
+    if (!device) return;
     const index = state.devices.filter(d => d.kind === device.kind).findIndex(d => d.id === device.id) + 1;
-    input = { source: signal.source, control: signal.control, module: signal.module, connectionId: signal.connectionId, kind: device.kind, number: index, button: el('button', '', 'input-key'), add: el('button', null, 'input-add icon-only') };
+    input = { source: signal.source, control: signal.control, module: signal.module, connectionId: signal.connectionId, kind: device.kind, number: index,
+      modifiers, chord: modifiers ? modifiers + '+' + (keyName(signal.control) || signal.control) : '',
+      button: el('span', null, 'input-item input-key'), label: el('span', null, 'input-label'), add: el('button', null, 'input-add icon-only') };
     const icon = el('i', null, 'ti ti-plus'); icon.setAttribute('aria-hidden', 'true'); input.add.append(icon);
     input.add.addEventListener('click', () => addInputToGraph(input).catch(error => status(error, true)));
-    input.button.addEventListener('click', () => {
-      const mapping = state.config.mappings.find(m => m.source === input.source && m.control === input.control);
-      editMapping(state.config, mapping?.id, { source: input.source, control: input.control, phase: input.phase, value: input.value, time: input.time }, save).catch(error => status(error, true));
-    });
     if (!state.inputs.size) $('inputs').replaceChildren(); state.inputs.set(key, input);
-    const item = el('span', null, 'input-item'); item.append(input.button, input.add); inputGroup(input).events.append(item);
+    input.button.append(input.label);
+    if (input.control.startsWith('key:')) {
+      const code = el('code', null, 'input-code'); code.textContent = input.control.slice(4); input.button.append(code);
+    }
+    input.button.append(input.add); inputGroup(input).events.append(input.button);
   }
   input.phase = signal.phase; input.value = signal.value; input.time = time(timestamp); clearHighlight(input);
-  input.button.classList.toggle('pressed', signal.phase === 'down'); input.button.classList.toggle('pulse', signal.phase === 'change');
-  if (signal.phase === 'change') input.timer = setTimeout(() => input.button.classList.remove('pulse'), 350);
+  const pulse = !!modifiers || signal.phase === 'change';
+  input.button.classList.toggle('pressed', !pulse && signal.phase === 'down'); input.button.classList.toggle('pulse', pulse);
+  if (pulse) input.timer = setTimeout(() => input.button.classList.remove('pulse'), 350);
   updateInput(input);
 }
 function diagnostic(d) {
@@ -286,6 +408,8 @@ function diagnostic(d) {
   graph.flash(d);
   if (d.stage === 'input' && signal) {
     sequenceCapture.accept(signal);
+    if (!$('tab-devices').hidden && !discoveryCapture.allowEditing && signal.module === 'windows.input' &&
+        (state.watch.has(signal.source) || signal.source === keyboardCaptureSource)) renderModifiers(signal.modifiers);
     discovered(signal, d.time);
   }
 }
@@ -296,9 +420,10 @@ function connected(value) {
   if (value && !$('tab-devices').hidden) discoverConfiguredDevices();
   updateDiscoveryCapture();
 }
-function clearInputs() { for (const input of state.inputs.values()) clearHighlight(input); state.inputs.clear(); inputGroups.clear(); $('inputs').replaceChildren(el('span', 'ui.press_a_physical_button_on_an_observed_device', 'empty')); }
+function clearInputs() { for (const input of state.inputs.values()) clearHighlight(input); state.inputs.clear(); inputGroups.clear(); renderModifiers(null); $('inputs').replaceChildren(el('span', 'ui.press_a_physical_button_on_an_observed_device', 'empty')); }
 function renderConfiguration() {
   renderOutputMode($('output-modes'), configurationLoaded ? state.config : null);
+  $('output-settings').disabled = !configurationLoaded;
   graph.setConfiguration(state.config, state.modules); mappingsTable.set(state.config.mappings);
   $('selected-node').textContent = state.config.nodes.find(node => node.id === state.selected)?.name || t('ui.select_a_node');
   connectionsTable.set(state.config.connections.map(c => ({ ...c, enabledText: t(c.enabled ? 'ui.yes' : 'ui.no'), parameters: Object.entries(c.settings).filter(([k]) => !/password|token|secret/i.test(k)).map(([k, v]) => `${k}=${v}`).join('; ') })));
@@ -342,7 +467,7 @@ action('log-help', () => showDetails(t('ui.diagnostics_help'), t('ui.the_log_sho
 action('validate', async () => { const result = await api('config/validate', 'POST', state.config); status(result.valid ? 'ui.graph_is_valid_no_errors' : result, !result.valid); });
 action('add-node', async () => {
   const kind = await chooseNodeRole();
-  if (kind) return editNode(state.config, state.modules, null, save, { kind }, null, sequenceCapture);
+  if (kind) return editGraphNode(null, { kind });
 });
 action('edit-node', () => state.selected ? openNode(state.selected) : status('ui.select_a_graph_node'));
 action('delete-link', () => removeEdge(graph.selectedEdge));
@@ -352,9 +477,17 @@ action('links', () => editLinks(state.config, save)); action('inject', () => inj
 action('clear-inputs', clearInputs); action('clear-log', () => { state.traces = []; logsTable.set([]); });
 action('toggle-log', () => { const collapsed = document.body.classList.toggle('log-collapsed'); $('toggle-log').textContent = (collapsed ? '▸' : '▾') + ' ' + t('ui.live_trace'); $('toggle-log').setAttribute('aria-expanded', String(!collapsed)); });
 $('zoom').addEventListener('input', event => graph.setZoom(Number(event.target.value)));
-action('output-modes', () => editOutputModes(() => state.config, Table, save));
+action('output-modes', async () => {
+  const button = $('output-modes');
+  if (button.disabled) return;
+  button.disabled = true;
+  try { await save({ ...state.config, dryRun: !state.config.dryRun }); }
+  finally { button.disabled = !configurationLoaded; }
+});
+action('output-settings', () => editOutputModes(() => state.config, Table, save));
 
 onLanguageChange(() => {
+  renderModifiers(discoveryModifiers);
   renderConfiguration();
   devicesTable.set(state.devices.map(d => ({ ...d, name: displayName(d), suppression: t(d.canSuppress ? 'ui.available' : 'ui.no_observe_only') })));
   for (const trace of state.traces) {

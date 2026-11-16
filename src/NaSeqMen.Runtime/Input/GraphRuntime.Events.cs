@@ -10,6 +10,11 @@ public sealed partial class GraphRuntime
     {
         if (node.Operation == "match")
             return node.Settings.GetValueOrDefault("phase", "") is "" or "down" or "up" or "change";
+        if (node.Operation == "default") return true;
+        if (node.Operation == "chord")
+            return node.Settings.GetValueOrDefault("source", "").Length > 0 &&
+                   node.Settings.GetValueOrDefault("control", "").StartsWith("key:", StringComparison.Ordinal) &&
+                   ChordModifiers(node) != ModifierKeys.None;
         return node.Operation == "sequence" &&
                config.Connections.Any(c => c.Id == node.ConnectionId && c.Module == "windows.input") &&
                !string.IsNullOrWhiteSpace(node.Settings.GetValueOrDefault("source")) &&
@@ -45,13 +50,41 @@ public sealed partial class GraphRuntime
         return (held & Modifier(node.Settings["modifier"])) != 0;
     }
 
-    private Signal? MatchEvent(NodeDefinition node, Signal signal, Prepared prepared)
+    private static readonly ModifierKeys[] ChordGroups = [ModifierKeys.Ctrl, ModifierKeys.Alt, ModifierKeys.Shift, ModifierKeys.Win];
+
+    private static ModifierKeys ChordModifiers(NodeDefinition node)
     {
-        if (!MatchesSource(node, signal, sequence: node.Operation == "sequence")) return null;
-        if (node.Operation == "match")
-            return signal.IsRepeat && node.Settings.GetValueOrDefault("ignoreRepeat") == "true" ? null : signal;
-        if (signal.Module != "windows.input" || !prepared.Sequences[node.Id].Accept(signal)) return null;
-        var output = signal with
+        var required = ModifierKeys.None;
+        foreach (var name in node.Settings.GetValueOrDefault("modifiers", "").Split('+', StringSplitOptions.TrimEntries))
+        {
+            var group = Modifier(name);
+            if (!ChordGroups.Contains(group) || (required & group) != 0) return ModifierKeys.None;
+            required |= group;
+        }
+        return required;
+    }
+
+    private EventOutcome MatchEvent(NodeDefinition node, Signal signal, Prepared prepared, out Signal output)
+    {
+        output = signal;
+        if (node.Operation == "default") return EventOutcome.Match;
+        if (!MatchesSource(node, signal, sequence: node.Operation is "sequence" or "chord")) return EventOutcome.Miss;
+        if (node.Operation == "match" && signal.IsRepeat && node.Settings.GetValueOrDefault("ignoreRepeat") == "true")
+            return EventOutcome.Miss;
+        if (node.Operation == "match") return EventOutcome.Match;
+        if (signal.Module != "windows.input") return EventOutcome.Miss;
+        if (node.Operation == "chord")
+        {
+            var held = signal.Modifiers?.SourceHeld ?? ModifierKeys.None;
+            var required = ChordModifiers(node);
+            return signal.Phase == "down" && !signal.IsRepeat &&
+                (signal.OriginalControl ?? signal.Control) == node.Settings["control"] &&
+                ChordGroups.All(group => ((held & group) != 0) == ((required & group) != 0))
+                ? EventOutcome.Match : EventOutcome.Miss;
+        }
+        var outcome = prepared.Sequences[node.Id].Accept(signal);
+        if (outcome != EventOutcome.Match) return outcome;
+        output = signal with
         {
             Control = node.Settings["eventName"],
             OriginalControl = null,
@@ -59,8 +92,7 @@ public sealed partial class GraphRuntime
             Value = "1",
             ValueType = "number"
         };
-        Emit(node, output, "transformed", M("runtime.sequenceMatched", ("event", output.Control)));
-        return output;
+        return EventOutcome.Match;
     }
 
     private static void ResetDisconnectedSequences(Prepared prepared, Signal signal)

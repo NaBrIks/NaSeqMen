@@ -115,9 +115,16 @@ public sealed partial class GraphRuntime
             if (config.Nodes.Any(n => n.Id == edge.To && n.Kind == "source")) errors.Add(M("runtime.edgeIntoSource"));
             var from = config.Nodes.FirstOrDefault(n => n.Id == edge.From);
             var to = config.Nodes.FirstOrDefault(n => n.Id == edge.To);
-            if (from is not null && to is not null && !PortTypes.Compatible(from, to))
+            if (edge.Outcome is not ("match" or "miss") ||
+                (edge.Outcome == "miss" && (from?.Kind != "event" || from.Operation == "default" || to?.Kind != "event")) ||
+                (to?.Kind == "event" && to.Operation == "default" && edge.Outcome != "miss"))
+                errors.Add(M("runtime.edgeOutcome", ("from", from?.Name ?? edge.From), ("to", to?.Name ?? edge.To)));
+            if (from is not null && to is not null &&
+                !(edge.Outcome == "miss" ? PortTypes.Compatible(PortTypes.Input(from), PortTypes.Input(to)) : PortTypes.Compatible(from, to)))
                 errors.Add(M("runtime.edgeTypes", ("from", from.Name), ("output", PortTypes.Output(from)), ("to", to.Name), ("input", PortTypes.Input(to))));
         }
+        foreach (var group in config.Edges.Where(edge => edge.Outcome == "miss").GroupBy(edge => edge.From).Where(group => group.Count() > 1))
+            errors.Add(M("runtime.multipleMiss", ("node", config.Nodes.FirstOrDefault(node => node.Id == group.Key)?.Name ?? group.Key)));
         if (errors.Count == 0 && HasCycle(config)) errors.Add(M("runtime.graphCycle"));
         return errors.Count == 0 ? (new Prepared(config, runners), errors) : (null, errors);
     }

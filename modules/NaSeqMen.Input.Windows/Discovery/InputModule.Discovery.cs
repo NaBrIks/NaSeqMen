@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 using NaSeqMen.Contracts;
+using System.ComponentModel;
 using static NaSeqMen.Contracts.MessageCatalog;
 
 namespace NaSeqMen.Input.Windows;
@@ -8,6 +9,7 @@ public sealed partial class InputModule
 {
     private readonly SemaphoreSlim _captureGate = new(1);
     private DiscoveryLease? _discovery;
+    private KeyboardDiscoveryGuard? _keyboardGuard;
     private Inspection? _inspection;
     private sealed record Inspection(Guid Owner, string[] Sources, string? Library, long Until);
 
@@ -20,8 +22,13 @@ public sealed partial class InputModule
             var previous = Volatile.Read(ref _inspection);
             if (interfaces.Length == 0)
             {
-                if (active?.Owner == owner) await ReleaseDiscoveryAsync(active);
-                if (previous?.Owner == owner) Volatile.Write(ref _inspection, null);
+                if (previous?.Owner == owner)
+                {
+                    await ReleaseKeyboardGuardAsync();
+                    if (active?.Owner == owner) await ReleaseDiscoveryAsync(active);
+                    Volatile.Write(ref _inspection, null);
+                    Interlocked.Increment(ref _generation);
+                }
                 return [];
             }
             if (previous is not null && previous.Until > Environment.TickCount64 && previous.Owner != owner)
@@ -30,34 +37,64 @@ public sealed partial class InputModule
             var sources = interfaces.Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
             var unchanged = previous is not null && previous.Until > Environment.TickCount64 && previous.Owner == owner &&
                 previous.Library == library && previous.Sources.SequenceEqual(sources, StringComparer.OrdinalIgnoreCase);
-            Volatile.Write(ref _inspection, new(owner, sources, library, Environment.TickCount64 + 2500));
+            Volatile.Write(ref _inspection, new(owner, sources, library, Environment.TickCount64 + DiscoveryCaptureRequest.LeaseMilliseconds));
+            var keyboard = await EnsureKeyboardGuardAsync();
+            string[] Result(string[] captured) => keyboard ? [DiscoveryCaptureRequest.Keyboard, .. captured] : captured;
             if (unchanged)
             {
-                if (active?.Running != true) return [];
+                if (active?.Running != true) return Result([]);
                 active.Renew();
-                return active.Sources;
+                return Result(active.Sources);
             }
             if (active is not null) await ReleaseDiscoveryAsync(active);
             Interlocked.Increment(ref _generation);
-            if (library is null) return [];
+            if (library is null) return Result([]);
             var capturable = GetCapturable(RawInputMonitor.EnumerateDevices());
             var selected = sources.Where(capturable.Contains).ToArray();
-            if (selected.Length == 0) return [];
+            if (selected.Length == 0) return Result([]);
             try
             {
                 var discovery = new DiscoveryLease(owner, library, selected, sample => QueueSample(sample, discoveryOnly: true),
                     ReportCaptureError);
                 Volatile.Write(ref _discovery, discovery);
-                return discovery.Sources;
+                return Result(discovery.Sources);
             }
             catch (Exception error) when (error is IOException or InvalidOperationException or DllNotFoundException or
                 BadImageFormatException or EntryPointNotFoundException)
             {
                 ReportCaptureError(error);
-                return [];
+                return Result([]);
             }
         }
         finally { _captureGate.Release(); }
+    }
+
+    private async Task<bool> EnsureKeyboardGuardAsync()
+    {
+        if (_keyboardGuard?.Renew() == true) return true;
+        if (_keyboardGuard is { HasForeground: false }) return false;
+        await ReleaseKeyboardGuardAsync();
+        var foreground = KeyboardDiscoveryGuard.ForegroundEditor();
+        if (foreground == 0) return false;
+        var guard = new KeyboardDiscoveryGuard(foreground, sample => QueueSample(sample, discoveryOnly: true));
+        try
+        {
+            await guard.StartAsync();
+            Volatile.Write(ref _keyboardGuard, guard);
+            return guard.Filtering;
+        }
+        catch (Exception error) when (error is Win32Exception or InvalidOperationException or TimeoutException)
+        {
+            await guard.DisposeAsync();
+            ReportCaptureError(error);
+            return false;
+        }
+    }
+
+    private async ValueTask ReleaseKeyboardGuardAsync()
+    {
+        var guard = Interlocked.Exchange(ref _keyboardGuard, null);
+        if (guard is not null) await guard.DisposeAsync();
     }
 
     private bool IsCaptured(string source)
@@ -103,6 +140,7 @@ public sealed partial class InputModule
         try
         {
             if (_discovery is not null) await ReleaseDiscoveryAsync(_discovery);
+            await ReleaseKeyboardGuardAsync();
             Volatile.Write(ref _inspection, null);
         }
         finally { _captureGate.Release(); }

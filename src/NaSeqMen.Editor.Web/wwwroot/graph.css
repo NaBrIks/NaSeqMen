@@ -1,30 +1,56 @@
 /* SPDX-License-Identifier: MIT */
-.graph-host { overflow: auto; overscroll-behavior: contain; min-width: 0; min-height: 0; height: 100%; background: var(--lu-bg-canvas); }
+.graph-host {
+  --graph-live: #008028;
+  --graph-pause: #975100;
+  overflow: auto; overscroll-behavior: contain; min-width: 0; min-height: 0; height: 100%; background: var(--lu-bg-canvas);
+}
+.lu-shell[data-theme=dark] .graph-host {
+  --graph-live: #55f575;
+  --graph-pause: #ffc05b;
+}
 .graph-surface { display: block; font: 13px "Segoe UI", sans-serif; user-select: none; touch-action: none; }
 .graph-lane-background { fill: var(--lu-bg-canvas); stroke: var(--lu-border); stroke-width: 1; }
 .graph-lane-label { fill: var(--lu-text-muted); font-size: 12px; letter-spacing: .35px; pointer-events: none; }
 .graph-divider { stroke: var(--lu-border); stroke-width: 1; }
-.graph-section rect { fill: var(--lu-surface-alt); stroke: var(--lu-border); stroke-width: 1; }
+.graph-section > rect { fill: var(--lu-surface-alt); stroke: var(--lu-border); stroke-width: 1; }
 .graph-section text { fill: var(--lu-text); font-weight: 600; pointer-events: none; }
-.graph-section[role=button] { cursor: pointer; outline: none; }
-.graph-section[role=button]:is(:hover,:focus-visible) rect { stroke: var(--lu-primary); }
-.lu-shell:has(.graph-section[aria-describedby]) .lu-tooltip { pointer-events: none; }
+.section-control { cursor: pointer; outline: none; }
+.section-control rect { fill: transparent; }
+.section-control path { fill: none; stroke: var(--lu-text-muted); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.section-control[aria-expanded] path { stroke: var(--lu-text); stroke-width: 2.8; }
+.section-control[data-section-control=play][aria-pressed=true] path { stroke: var(--graph-live); stroke-width: 2.8; }
+.section-control:is([data-section-control=pause],[data-section-control=debug])[aria-pressed=true] path { stroke: var(--graph-pause); stroke-width: 2.8; }
+.section-control:is(:hover,:focus-visible) path { stroke-width: 3; }
+.section-control[aria-disabled=true] { cursor: default; opacity: .45; }
+.lu-shell:has(.section-control[aria-describedby]) .lu-tooltip { pointer-events: none; }
 .graph-node { cursor: pointer; outline: none; }
 .graph-node-box { fill: var(--lu-surface); stroke: var(--lu-border); stroke-width: 1; }
 .graph-node-title { fill: var(--lu-text); pointer-events: none; }
 .graph-node-detail { fill: var(--lu-text-muted); font-size: 12px; pointer-events: none; }
 .graph-disabled .graph-node-box { fill: var(--lu-surface-alt); stroke-dasharray: 3 2; }
 .graph-disabled .graph-node-title { fill: var(--lu-text-subtle); }
-.graph-mode { cursor: pointer; }
+.graph-mode { cursor: pointer; outline: none; }
+.graph-mode[aria-disabled=true] { cursor: wait; }
 .graph-mode rect { fill: transparent; }
-.graph-mode text { font: 13px tabler-icons; text-anchor: middle; pointer-events: none; fill: var(--lu-success); }
-.graph-mode[data-mode=test] text { fill: var(--lu-warning); }
-.graph-mode[data-mode=off] text { fill: var(--lu-text-subtle); }
-.graph-mode:is(:hover,:focus-visible) rect { stroke: var(--lu-primary); }
-.lu-shell:has(.graph-mode[aria-describedby]) .lu-tooltip { pointer-events: none; }
+.graph-mode path { fill: none; stroke: var(--lu-text-muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.graph-mode[aria-pressed=true] path { stroke: var(--graph-mode-color, var(--graph-live)); stroke-width: 2.5; }
+.graph-mode-controls:is([data-mode=test],[data-mode=off]) {
+  --graph-mode-color: var(--graph-pause);
+}
+.graph-mode:is(:hover,:focus-visible) path { stroke: var(--graph-mode-color, var(--graph-live)); }
+.graph-mode:focus-visible path { stroke-width: 2.5; }
+.graph-add { cursor: pointer; outline: none; }
+.graph-add-hit { fill: transparent; }
+.graph-add-ring, .graph-add path { fill: none; stroke: var(--lu-text-muted); stroke-width: 1.3; stroke-linecap: round; }
+.graph-add-dock { fill: var(--lu-primary); }
+.graph-add:is(:hover,:focus-visible,.graph-add-compatible) :is(.graph-add-ring,path) { stroke: var(--lu-text); stroke-width: 1.8; }
+.graph-add.graph-add-compatible .graph-add-dock { fill: var(--graph-live); }
+.lu-shell:has(:is(.graph-mode,.graph-add)[aria-describedby]) .lu-tooltip { pointer-events: none; }
 .graph-preview-only .graph-node-box { stroke: var(--lu-warning); stroke-dasharray: 4 2; }
 .graph-selected .graph-node-box, .graph-node:focus-visible .graph-node-box { stroke: var(--lu-primary); stroke-width: 2; }
-:is(.graph-node,.graph-destination).graph-active .graph-node-box { stroke: var(--lu-success); stroke-width: 3; }
+:is(.graph-node,.graph-destination).graph-active:not(.graph-failed) > .graph-node-box {
+  stroke: var(--graph-live); stroke-width: 4; stroke-dasharray: none;
+}
 .graph-node.graph-failed .graph-node-box { stroke: var(--lu-danger); stroke-width: 3; }
 .graph-node.graph-suppressed .graph-node-box { stroke: var(--lu-warning); stroke-width: 3; stroke-dasharray: 4 2; }
 .graph-wire { fill: none; stroke: var(--lu-text-muted); stroke-width: 1.4; }
@@ -32,7 +58,7 @@
 .graph-wire-hit { fill: none; stroke: transparent; stroke-width: 7; pointer-events: stroke; }
 .graph-edge:hover .graph-wire, .graph-edge:focus-visible .graph-wire { stroke: var(--lu-primary); stroke-width: 2; }
 .graph-wire.graph-wire-selected { stroke: var(--lu-primary); stroke-width: 3; }
-.graph-wire.graph-active { stroke: var(--lu-success); stroke-width: 3; }
+.graph-surface .graph-wire.graph-active { stroke: var(--graph-live); stroke-width: 4; }
 .graph-delivery-dot { fill: var(--lu-text-muted); }
 .graph-wire-preview { stroke: var(--lu-info); stroke-dasharray: 4 3; pointer-events: none; }
 .graph-wire-preview[hidden] { display: none; }
