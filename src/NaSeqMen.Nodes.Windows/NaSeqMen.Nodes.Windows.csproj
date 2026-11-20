@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <RootNamespace>NaSeqMen.Nodes.Windows</RootNamespace>
+    <AssemblyName>NaSeqMen.Nodes.Windows</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NaSeqMen.Core\NaSeqMen.Core.csproj" />
+  </ItemGroup>
+</Project>

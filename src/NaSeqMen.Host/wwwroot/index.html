@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NaSeqMen — Node Flow Editor</title>
+  <link rel="stylesheet" href="css/editor.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="5" cy="12" r="2.5"></circle>
+          <circle cx="19" cy="6" r="2.5"></circle>
+          <circle cx="19" cy="18" r="2.5"></circle>
+          <path d="M7.5 12 C12 12, 12 6, 16.5 6"></path>
+          <path d="M7.5 12 C12 12, 12 18, 16.5 18"></path>
+        </svg>
+        <span class="brand-name">NaSeqMen</span>
+        <span class="brand-badge" id="engine-status" data-i18n="status.connected">Connected</span>
+      </div>
+
+      <div class="flow-tabs-wrap">
+        <div class="flow-tabs" id="flow-tabs"></div>
+        <button class="icon-btn" id="btn-add-flow" title="Add Flow Tab">+</button>
+      </div>
+
+      <div class="topbar-actions">
+        <div class="zoom-group">
+          <button class="icon-btn" id="btn-zoom-out" title="Zoom Out">−</button>
+          <span class="zoom-label" id="zoom-label">100%</span>
+          <button class="icon-btn" id="btn-zoom-in" title="Zoom In">+</button>
+          <button class="icon-btn" id="btn-fit" title="Fit View">⊡</button>
+        </div>
+        <button class="btn-secondary btn-toggle active" id="btn-flash" title="Toggle node & wire flash on events">⚡ <span data-i18n="action.flash">Flash</span></button>
+        <button class="btn-secondary" id="btn-reset" data-i18n="action.resetDemo">Reset Demo</button>
+        <button class="btn-secondary btn-lang" id="btn-lang">EN</button>
+        <button class="btn-deploy" id="btn-deploy" data-i18n="action.deploy">Deploy</button>
+      </div>
+    </header>
+
+    <!-- Main 3-column Workspace -->
+    <div class="workspace">
+      <!-- Left: Node Palette (Node-RED style) -->
+      <aside class="sidebar-left">
+        <div class="palette-search-wrap">
+          <input type="text" id="palette-search" class="search-input" placeholder="Filter nodes..." data-i18n-placeholder="palette.filter" />
+        </div>
+        <div class="palette-list" id="palette-list"></div>
+      </aside>
+
+      <!-- Center: Node Graph Canvas (Blender style) -->
+      <main class="canvas-container" id="canvas-container" tabindex="0">
+        <div class="canvas-grid" id="canvas-grid"></div>
+        <div class="canvas-viewport" id="canvas-viewport">
+          <svg class="edges-layer" id="edges-layer">
+            <defs id="edges-defs"></defs>
+            <g id="edges-group"></g>
+            <path id="temp-wire" class="wire temp-wire" d="" style="display:none;"></path>
+          </svg>
+          <div class="nodes-layer" id="nodes-layer"></div>
+        </div>
+        <div class="marquee-box" id="marquee-box" style="display:none;"></div>
+        <div class="canvas-hint" id="canvas-hint" data-i18n="canvas.hint">
+          Drag nodes from palette · Drag socket to connect · Wheel to zoom · Drag background to pan · Del to remove
+        </div>
+      </main>
+
+      <!-- Right: Debug / Inspector / Info Sidebar -->
+      <aside class="sidebar-right">
+        <div class="right-tabs">
+          <button class="right-tab active" data-tab="debug" data-i18n="tab.debug">Debug</button>
+          <button class="right-tab" data-tab="inspector" data-i18n="tab.inspector">Inspector</button>
+          <button class="right-tab" data-tab="info" data-i18n="tab.info">Info</button>
+        </div>
+
+        <!-- Debug Tab -->
+        <section class="right-panel active" id="panel-debug">
+          <div class="panel-toolbar">
+            <input type="text" id="debug-filter" class="search-input small" placeholder="Filter debug..." data-i18n-placeholder="debug.filter" />
+            <button class="icon-btn" id="btn-debug-pause" title="Pause stream">⏸</button>
+            <button class="icon-btn" id="btn-debug-clear" title="Clear debug log">🗑</button>
+          </div>
+          <div class="debug-list" id="debug-list"></div>
+        </section>
+
+        <!-- Inspector Tab -->
+        <section class="right-panel" id="panel-inspector">
+          <div class="inspector-body" id="inspector-body"></div>
+        </section>
+
+        <!-- Info Tab -->
+        <section class="right-panel" id="panel-info">
+          <div class="info-body" id="info-body"></div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Context Menu -->
+  <div class="context-menu" id="context-menu" style="display:none;"></div>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/canvas.js"></script>
+  <script src="js/inspector.js"></script>
+  <script src="js/debug-panel.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

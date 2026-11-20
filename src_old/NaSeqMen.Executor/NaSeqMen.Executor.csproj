@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../NaSeqMen.Runtime/NaSeqMen.Runtime.csproj" />
+    <ProjectReference Include="../../modules/NaSeqMen.Interception/NaSeqMen.Interception.csproj" />
+    <ProjectReference Include="../../modules/NaSeqMen.Input.Windows/NaSeqMen.Input.Windows.csproj" />
+    <ProjectReference Include="../../modules/NaSeqMen.Obs/NaSeqMen.Obs.csproj" />
+    <EmbeddedResource Include="Assets/Tabler/arrows-split.ico" LogicalName="Tabler.arrows-split.ico" />
+    <None Include="../NaSeqMen.Editor/Assets/Tabler/LICENSE" Link="licenses/Tabler/LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

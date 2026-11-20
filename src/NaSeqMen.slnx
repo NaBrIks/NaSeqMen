@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="NaSeqMen.Core/NaSeqMen.Core.csproj" />
+  <Project Path="NaSeqMen.Engine/NaSeqMen.Engine.csproj" />
+  <Project Path="NaSeqMen.Nodes.Basic/NaSeqMen.Nodes.Basic.csproj" />
+  <Project Path="NaSeqMen.Nodes.Windows/NaSeqMen.Nodes.Windows.csproj" />
+  <Project Path="NaSeqMen.Host/NaSeqMen.Host.csproj" />
+</Solution>
