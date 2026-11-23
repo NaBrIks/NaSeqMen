@@ -58,7 +58,7 @@ public sealed class KeyboardInputNode : NodeBase
             {
                 Key = "filterKey",
                 Label = "Key Filter",
-                Kind = ParameterKind.String,
+                Kind = ParameterKind.Key,
                 DefaultValue = "",
                 Placeholder = "All keys (or e.g. A, Space, F9)",
                 Inline = true,

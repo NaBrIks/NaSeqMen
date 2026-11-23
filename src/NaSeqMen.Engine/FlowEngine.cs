@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using System.Threading.Channels;
 using NaSeqMen.Core.Graph;
 using NaSeqMen.Core.Messages;
@@ -16,6 +17,8 @@ public sealed class FlowEngine : IAsyncDisposable
     private readonly SemaphoreSlim _deployLock = new(1, 1);
     private readonly ConcurrentDictionary<Guid, Channel<EngineStreamEvent>> _subscribers = new();
     private readonly ConcurrentQueue<DebugEntry> _debugHistory = new();
+    private readonly ConcurrentDictionary<string, object> _widgetStates = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, string?> _nodeStatuses = new(StringComparer.Ordinal);
 
     private WorkspaceDocument _workspace = new();
     private Dictionary<string, RunningNode> _runningNodes = new(StringComparer.Ordinal);
@@ -36,6 +39,12 @@ public sealed class FlowEngine : IAsyncDisposable
     public event Action<bool>? PausedChanged;
 
     public IReadOnlyList<DebugEntry> GetDebugHistory() => _debugHistory.ToArray();
+
+    public IReadOnlyDictionary<string, object> GetWidgetStates()
+        => new Dictionary<string, object>(_widgetStates, StringComparer.Ordinal);
+
+    public IReadOnlyDictionary<string, string?> GetNodeStatuses()
+        => new Dictionary<string, string?>(_nodeStatuses, StringComparer.Ordinal);
 
     public void ClearDebugHistory()
     {
@@ -99,7 +108,8 @@ public sealed class FlowEngine : IAsyncDisposable
                         parameters: inst.Parameters,
                         emitFunc: RouteMessageAsync,
                         debugAction: PublishDebug,
-                        statusAction: ReportNodeStatus);
+                        statusAction: ReportNodeStatus,
+                        widgetAction: PublishWidgetState);
 
                     await node.InitializeAsync(ctx, ct);
                     nodes[inst.Id] = new RunningNode(flow.Id, inst, node);
@@ -194,6 +204,15 @@ public sealed class FlowEngine : IAsyncDisposable
         return true;
     }
 
+    public async Task<bool> InteractNodeAsync(string nodeId, string action, JsonElement? data = null, CancellationToken cancellationToken = default)
+    {
+        if (!_runningNodes.TryGetValue(nodeId, out var running))
+            return false;
+
+        await running.Node.OnInteractAsync(action, data, cancellationToken);
+        return true;
+    }
+
     private async Task RouteMessageAsync(string fromNodeId, string fromPortId, FlowMessage message, CancellationToken cancellationToken)
     {
         if (message.HopCount >= MaxHopCount)
@@ -284,10 +303,21 @@ public sealed class FlowEngine : IAsyncDisposable
 
     private void ReportNodeStatus(string nodeId, string? statusText)
     {
+        _nodeStatuses[nodeId] = statusText;
         Broadcast(new EngineStreamEvent
         {
             Kind = "node.status",
             Data = new NodeStatusEvent { NodeId = nodeId, StatusText = statusText },
+        });
+    }
+
+    private void PublishWidgetState(string nodeId, object state)
+    {
+        _widgetStates[nodeId] = state;
+        Broadcast(new EngineStreamEvent
+        {
+            Kind = "node.widget",
+            Data = new { nodeId, state },
         });
     }
 
@@ -316,6 +346,8 @@ public sealed class FlowEngine : IAsyncDisposable
 
         _runningNodes = new(StringComparer.Ordinal);
         _routingTable = new();
+        _widgetStates.Clear();
+        _nodeStatuses.Clear();
     }
 
     public async ValueTask DisposeAsync()

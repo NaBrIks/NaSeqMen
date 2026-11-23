@@ -25,6 +25,7 @@ public sealed class NodeInstance
     public string Title { get; set; } = string.Empty;
     public double X { get; set; }
     public double Y { get; set; }
+    public double? Width { get; set; }
     public bool Collapsed { get; set; }
     public bool Enabled { get; set; } = true;
     public Dictionary<string, JsonElement> Parameters { get; set; } = new(StringComparer.Ordinal);

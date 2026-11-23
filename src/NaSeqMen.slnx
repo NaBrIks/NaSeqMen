@@ -3,5 +3,10 @@
   <Project Path="NaSeqMen.Engine/NaSeqMen.Engine.csproj" />
   <Project Path="NaSeqMen.Nodes.Basic/NaSeqMen.Nodes.Basic.csproj" />
   <Project Path="NaSeqMen.Nodes.Windows/NaSeqMen.Nodes.Windows.csproj" />
+  <Project Path="NaSeqMen.Nodes.Interception/NaSeqMen.Nodes.Interception.csproj" />
+  <Project Path="NaSeqMen.Nodes.Obs/NaSeqMen.Nodes.Obs.csproj" />
+  <Project Path="NaSeqMen.Nodes.Controls/NaSeqMen.Nodes.Controls.csproj" />
+  <Project Path="NaSeqMen.Nodes.Scripting/NaSeqMen.Nodes.Scripting.csproj" />
   <Project Path="NaSeqMen.Host/NaSeqMen.Host.csproj" />
+  <Project Path="NaSeqMen.Tests/NaSeqMen.Tests.csproj" />
 </Solution>

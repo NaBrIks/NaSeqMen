@@ -1,3 +1,4 @@
+using System.Text.Json;
 using NaSeqMen.Core.Messages;
 
 namespace NaSeqMen.Core.Nodes;
@@ -18,6 +19,8 @@ public interface INode : IAsyncDisposable
     Task OnInputAsync(string inputPortId, FlowMessage message, CancellationToken cancellationToken);
 
     Task OnManualTriggerAsync(FlowMessage? message, CancellationToken cancellationToken);
+
+    Task OnInteractAsync(string action, JsonElement? data, CancellationToken cancellationToken);
 }
 
 /// <summary>

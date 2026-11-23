@@ -12,6 +12,7 @@ public sealed class NodeContext
     private readonly Func<string, string, FlowMessage, CancellationToken, Task> _emitFunc;
     private readonly Action<DebugEntry> _debugAction;
     private readonly Action<string, string?> _statusAction;
+    private readonly Action<string, object> _widgetAction;
 
     public NodeContext(
         string nodeId,
@@ -20,7 +21,8 @@ public sealed class NodeContext
         IReadOnlyDictionary<string, JsonElement> parameters,
         Func<string, string, FlowMessage, CancellationToken, Task> emitFunc,
         Action<DebugEntry> debugAction,
-        Action<string, string?> statusAction)
+        Action<string, string?> statusAction,
+        Action<string, object>? widgetAction = null)
     {
         NodeId = nodeId;
         FlowId = flowId;
@@ -29,6 +31,7 @@ public sealed class NodeContext
         _emitFunc = emitFunc;
         _debugAction = debugAction;
         _statusAction = statusAction;
+        _widgetAction = widgetAction ?? ((_, _) => { });
     }
 
     public string NodeId { get; }
@@ -42,6 +45,8 @@ public sealed class NodeContext
     public void PublishDebug(DebugEntry entry) => _debugAction(entry);
 
     public void ReportStatus(string? text) => _statusAction(NodeId, text);
+
+    public void PublishWidgetState(object state) => _widgetAction(NodeId, state);
 
     public string GetString(string key, string defaultValue = "")
     {

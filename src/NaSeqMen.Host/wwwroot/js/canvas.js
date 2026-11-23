@@ -42,6 +42,7 @@ class NodeCanvas {
     this.selectedEdgeId = null;
 
     this.dragState = null;
+    this.resizeState = null;
     this.wireState = null;
     this.panState = null;
     this.marqueeState = null;
@@ -144,6 +145,15 @@ class NodeCanvas {
     if (this.selectedNodeIds.has(node.id)) el.classList.add("selected");
     if (node.collapsed) el.classList.add("collapsed");
     if (!node.enabled) el.classList.add("disabled");
+
+    const hasIn = (desc?.inputs?.length || 0) > 0;
+    const hasOut = (desc?.outputs?.length || 0) > 0;
+    if (hasIn && hasOut) el.classList.add("two-col-ports");
+    if (node.width && node.width >= 120) {
+      el.classList.add("has-custom-width");
+      el.style.width = `${Math.round(node.width)}px`;
+    }
+
     el.dataset.nodeId = node.id;
     el.style.left = `${node.x}px`;
     el.style.top = `${node.y}px`;
@@ -189,22 +199,47 @@ class NodeCanvas {
     const body = document.createElement("div");
     body.className = "node-body";
 
-    // Outputs (top-right like Blender)
-    if (desc?.outputs) {
-      for (const port of desc.outputs) {
-        body.appendChild(this._createPortRow(node.id, port, "output"));
+    // Ports: side-by-side 2-column grid (inputs left, outputs right) to save vertical space
+    if (hasIn || hasOut) {
+      const portsGrid = document.createElement("div");
+      portsGrid.className = `ports-grid ${hasIn && hasOut ? "two-col" : "one-col"}`;
+
+      if (hasIn) {
+        const inCol = document.createElement("div");
+        inCol.className = "ports-col ports-col-in";
+        for (const port of desc.inputs) {
+          inCol.appendChild(this._createPortRow(node.id, port, "input"));
+        }
+        portsGrid.appendChild(inCol);
+      }
+
+      if (hasOut) {
+        const outCol = document.createElement("div");
+        outCol.className = "ports-col ports-col-out";
+        for (const port of desc.outputs) {
+          outCol.appendChild(this._createPortRow(node.id, port, "output"));
+        }
+        portsGrid.appendChild(outCol);
+      }
+
+      body.appendChild(portsGrid);
+    }
+
+    // Interactive widget (Button, Slider, VU Meter, OBS/Interception status)
+    if (typeof NodeWidgets !== "undefined" && desc?.widgetKind) {
+      const widgetEl = NodeWidgets.create(node, desc, (nid, action, data) => {
+        this.cb.onInteractNode(nid, action, data);
+      });
+      if (widgetEl) {
+        el.classList.add("has-widget");
+        body.appendChild(widgetEl);
       }
     }
 
-    // Inputs (left)
-    if (desc?.inputs) {
-      for (const port of desc.inputs) {
-        body.appendChild(this._createPortRow(node.id, port, "input"));
-      }
-    }
-
-    // Inline Parameters (Blender style)
-    const inlineParams = (desc?.parameters || []).filter((p) => p.inline);
+    // Inline Parameters (Blender style; OBS keeps its config strictly in Inspector)
+    const inlineParams = desc?.widgetKind === "obs-status"
+      ? []
+      : (desc?.parameters || []).filter((p) => p.inline);
     if (inlineParams.length > 0) {
       const paramsWrap = document.createElement("div");
       paramsWrap.className = "node-params";
@@ -225,6 +260,32 @@ class NodeCanvas {
     body.appendChild(statusBar);
 
     el.appendChild(body);
+
+    // Right-edge width resize handle (drag to resize, double-click to reset to auto)
+    const resizeHandle = document.createElement("div");
+    resizeHandle.className = "node-resize-handle";
+    resizeHandle.title = "Drag to resize width · Double-click to reset";
+    resizeHandle.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      el.classList.add("resizing");
+      this.resizeState = {
+        node,
+        card: el,
+        startX: e.clientX,
+        startWidth: el.offsetWidth,
+        moved: false,
+      };
+    });
+    resizeHandle.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      node.width = null;
+      el.classList.remove("has-custom-width");
+      el.style.width = "";
+      this.cb.onDirty();
+      this._renderEdges();
+    });
+    el.appendChild(resizeHandle);
 
     // Node selection & drag
     el.addEventListener("mousedown", (e) => {
@@ -318,6 +379,12 @@ class NodeCanvas {
         this.cb.onDirty();
       });
       wrap.append(lbl, sel);
+    } else if ((param.kind === "key" || param.kind === "keyCombo") && typeof KeyPicker !== "undefined") {
+      const ctrl = KeyPicker.createInlineControl(val, param.placeholder, param.kind, (nextVal) => {
+        node.parameters[param.key] = nextVal;
+        this.cb.onDirty();
+      });
+      wrap.append(lbl, ctrl);
     } else {
       const inp = document.createElement("input");
       inp.type = param.kind === "number" ? "number" : "text";
@@ -360,6 +427,15 @@ class NodeCanvas {
   }
 
   _bezierPath(p1, p2) {
+    // Graceful under-arc for loop-back wires (e.g. Chord Matcher -> Interception Return)
+    if (p2.x < p1.x - 20) {
+      const dx = Math.abs(p1.x - p2.x);
+      const bowY = Math.max(120, Math.min(240, dx * 0.32));
+      const c1x = p1.x + Math.min(140, dx * 0.3);
+      const c2x = p2.x - Math.min(140, dx * 0.3);
+      const midY = Math.max(p1.y, p2.y) + bowY;
+      return `M ${p1.x} ${p1.y} C ${c1x} ${midY}, ${c2x} ${midY}, ${p2.x} ${p2.y}`;
+    }
     const dist = Math.max(50, Math.abs(p2.x - p1.x) * 0.52);
     return `M ${p1.x} ${p1.y} C ${p1.x + dist} ${p1.y}, ${p2.x - dist} ${p2.y}, ${p2.x} ${p2.y}`;
   }
@@ -622,6 +698,17 @@ class NodeCanvas {
     });
 
     window.addEventListener("mousemove", (e) => {
+      if (this.resizeState) {
+        const dx = (e.clientX - this.resizeState.startX) / this.scale;
+        if (Math.abs(dx) > 1) this.resizeState.moved = true;
+        const nextW = Math.round(Math.max(120, Math.min(560, this.resizeState.startWidth + dx)));
+        this.resizeState.node.width = nextW;
+        this.resizeState.card.classList.add("has-custom-width");
+        this.resizeState.card.style.width = `${nextW}px`;
+        this._renderEdges();
+        return;
+      }
+
       if (this.wireState) {
         this._updateTempWire(e.clientX, e.clientY);
         return;
@@ -668,6 +755,11 @@ class NodeCanvas {
     });
 
     window.addEventListener("mouseup", (e) => {
+      if (this.resizeState) {
+        this.resizeState.card.classList.remove("resizing");
+        if (this.resizeState.moved) this.cb.onDirty();
+        this.resizeState = null;
+      }
       if (this.wireState) {
         this._finishWireDrag(e);
       }

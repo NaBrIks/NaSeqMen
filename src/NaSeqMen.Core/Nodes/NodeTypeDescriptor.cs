@@ -11,6 +11,7 @@ public sealed record NodeTypeDescriptor
     public string Color { get; init; } = "#4b5563";
     public string? Description { get; init; }
     public bool SupportsManualTrigger { get; init; }
+    public string? WidgetKind { get; init; }
     public IReadOnlyList<PortDefinition> Inputs { get; init; } = Array.Empty<PortDefinition>();
     public IReadOnlyList<PortDefinition> Outputs { get; init; } = Array.Empty<PortDefinition>();
     public IReadOnlyList<ParameterDefinition> Parameters { get; init; } = Array.Empty<ParameterDefinition>();

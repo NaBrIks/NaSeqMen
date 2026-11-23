@@ -11,5 +11,9 @@
     <ProjectReference Include="..\NaSeqMen.Engine\NaSeqMen.Engine.csproj" />
     <ProjectReference Include="..\NaSeqMen.Nodes.Basic\NaSeqMen.Nodes.Basic.csproj" />
     <ProjectReference Include="..\NaSeqMen.Nodes.Windows\NaSeqMen.Nodes.Windows.csproj" />
+    <ProjectReference Include="..\NaSeqMen.Nodes.Interception\NaSeqMen.Nodes.Interception.csproj" />
+    <ProjectReference Include="..\NaSeqMen.Nodes.Obs\NaSeqMen.Nodes.Obs.csproj" />
+    <ProjectReference Include="..\NaSeqMen.Nodes.Controls\NaSeqMen.Nodes.Controls.csproj" />
+    <ProjectReference Include="..\NaSeqMen.Nodes.Scripting\NaSeqMen.Nodes.Scripting.csproj" />
   </ItemGroup>
 </Project>

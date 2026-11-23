@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <RootNamespace>NaSeqMen.Nodes.Interception</RootNamespace>
+    <AssemblyName>NaSeqMen.Nodes.Interception</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NaSeqMen.Core\NaSeqMen.Core.csproj" />
+  </ItemGroup>
+</Project>

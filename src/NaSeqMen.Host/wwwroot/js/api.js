@@ -36,6 +36,32 @@ const Api = {
     return res.ok;
   },
 
+  async interactNode(nodeId, action, data = null) {
+    const res = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}/interact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, data }),
+    });
+    return res.ok;
+  },
+
+  async getState() {
+    const res = await fetch("/api/state");
+    if (!res.ok) return { paused: false, widgets: {}, statuses: {} };
+    return res.json();
+  },
+
+  async getInterceptionDevices(dllPath = "") {
+    const q = dllPath ? `?dllPath=${encodeURIComponent(dllPath)}` : "";
+    const res = await fetch(`/api/interception/devices${q}`);
+    if (!res.ok) return null;
+    return res.json();
+  },
+
+  async panicReleaseInterception() {
+    await fetch("/api/interception/panic-release", { method: "POST" });
+  },
+
   async getDebugHistory() {
     const res = await fetch("/api/debug");
     if (!res.ok) return [];

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using NaSeqMen.Core.Messages;
 
 namespace NaSeqMen.Core.Nodes;
@@ -28,8 +29,13 @@ public abstract class NodeBase : INode
     public virtual Task OnManualTriggerAsync(FlowMessage? message, CancellationToken cancellationToken)
         => Task.CompletedTask;
 
+    public virtual Task OnInteractAsync(string action, JsonElement? data, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
     protected Task EmitAsync(string outputPortId, FlowMessage message, CancellationToken cancellationToken = default)
         => Context.EmitAsync(outputPortId, message, cancellationToken);
+
+    protected void PublishWidgetState(object state) => Context.PublishWidgetState(state);
 
     protected string GetString(string key, string defaultValue = "") => Context.GetString(key, defaultValue);
     protected bool GetBool(string key, bool defaultValue = false) => Context.GetBool(key, defaultValue);

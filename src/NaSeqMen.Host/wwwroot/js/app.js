@@ -5,8 +5,11 @@ let dirty = false;
 let canvas = null;
 let debugPanel = null;
 let flashEnabled = localStorage.getItem("naseqmen.flash") !== "0";
+let densityMode = localStorage.getItem("naseqmen.density") || "full";
 let engineConnected = false;
 let enginePaused = false;
+const widgetStates = new Map();
+const nodeStatuses = new Map();
 
 async function init() {
   applyI18n();
@@ -16,6 +19,7 @@ async function init() {
     onDirty: markDirty,
     onSelectionChange: handleSelectionChange,
     onTriggerNode: handleTriggerNode,
+    onInteractNode: handleInteractNode,
     onSpawnNode: spawnNode,
     onCanvasContextMenu: showCanvasContextMenu,
     onNodeContextMenu: showNodeContextMenu,
@@ -24,6 +28,7 @@ async function init() {
   bindTopbar();
   bindRightTabs();
   bindPaletteSearch();
+  bindSidebarResizers();
 
   document.addEventListener("click", hideContextMenu);
 
@@ -40,6 +45,20 @@ async function init() {
 
   const history = await Api.getDebugHistory();
   debugPanel.setHistory(history);
+
+  const liveState = await Api.getState();
+  enginePaused = Boolean(liveState.paused);
+  if (liveState.widgets) {
+    for (const [nid, st] of Object.entries(liveState.widgets)) {
+      widgetStates.set(nid, st);
+    }
+  }
+  if (liveState.statuses) {
+    for (const [nid, st] of Object.entries(liveState.statuses)) {
+      nodeStatuses.set(nid, st);
+    }
+  }
+  applyCachedStates();
 
   Api.subscribeEvents(handleEngineEvent, (connected) => {
     engineConnected = connected;
@@ -71,7 +90,17 @@ function selectFlow(flowId) {
   activeFlowId = flowId;
   renderFlowTabs();
   canvas.setFlow(getActiveFlow());
+  applyCachedStates();
   renderInfoPanel(workspace, catalog);
+}
+
+function applyCachedStates() {
+  for (const [nid, st] of widgetStates) {
+    NodeWidgets.applyState(nid, st);
+  }
+  for (const [nid, st] of nodeStatuses) {
+    canvas.updateNodeStatus(nid, st);
+  }
 }
 
 function setDirty(isDirty) {
@@ -208,9 +237,11 @@ function handleSelectionChange(node) {
     onChanged: () => {
       markDirty();
       canvas.render();
+      applyCachedStates();
     },
     onTrigger: handleTriggerNode,
     onDelete: () => canvas.deleteSelection(),
+    getWidgetState: (id) => widgetStates.get(id) || null,
   });
 }
 
@@ -221,9 +252,36 @@ async function handleTriggerNode(nodeId) {
   await Api.triggerNode(nodeId);
 }
 
+async function handleInteractNode(nodeId, action, data = null) {
+  if (dirty && action !== "change") {
+    await deployNow();
+  }
+  await Api.interactNode(nodeId, action, data);
+}
+
+async function syncStateFromServer() {
+  const liveState = await Api.getState();
+  enginePaused = Boolean(liveState.paused);
+  widgetStates.clear();
+  nodeStatuses.clear();
+  if (liveState.widgets) {
+    for (const [nid, st] of Object.entries(liveState.widgets)) {
+      widgetStates.set(nid, st);
+    }
+  }
+  if (liveState.statuses) {
+    for (const [nid, st] of Object.entries(liveState.statuses)) {
+      nodeStatuses.set(nid, st);
+    }
+  }
+  applyCachedStates();
+  updateStatusBadge();
+}
+
 async function deployNow() {
   await Api.deployWorkspace(workspace);
   setDirty(false);
+  await syncStateFromServer();
 }
 
 function handleEngineEvent(evt) {
@@ -241,7 +299,11 @@ function handleEngineEvent(evt) {
       canvas.pulseWire(evt.data.edgeId, evt.data.fromNodeId, evt.data.toNodeId);
     }
   } else if (evt.kind === "node.status") {
+    nodeStatuses.set(evt.data.nodeId, evt.data.statusText);
     canvas.updateNodeStatus(evt.data.nodeId, evt.data.statusText);
+  } else if (evt.kind === "node.widget") {
+    widgetStates.set(evt.data.nodeId, evt.data.state);
+    NodeWidgets.applyState(evt.data.nodeId, evt.data.state);
   } else if (evt.kind === "engine.state" || evt.kind === "engine.deployed") {
     if (typeof evt.data?.paused === "boolean") {
       enginePaused = evt.data.paused;
@@ -265,6 +327,11 @@ function bindTopbar() {
   document.getElementById("btn-zoom-out").addEventListener("click", () => canvas.zoomBy(0.85));
   document.getElementById("btn-fit").addEventListener("click", () => canvas.fitView());
 
+  applyDensityMode(densityMode, false);
+  document.querySelectorAll(".density-btn").forEach((btn) => {
+    btn.addEventListener("click", () => applyDensityMode(btn.dataset.density, true));
+  });
+
   const flashBtn = document.getElementById("btn-flash");
   flashBtn.classList.toggle("active", flashEnabled);
   flashBtn.addEventListener("click", () => {
@@ -277,6 +344,7 @@ function bindTopbar() {
     workspace = await Api.resetWorkspace();
     selectFlow(workspace.flows[0].id);
     setDirty(false);
+    await syncStateFromServer();
     setTimeout(() => canvas.fitView(), 40);
   });
 
@@ -288,6 +356,18 @@ function bindTopbar() {
     handleSelectionChange(canvas._getSingleSelectedNode());
     renderInfoPanel(workspace, catalog);
   });
+}
+
+function applyDensityMode(mode, rerenderEdges = true) {
+  densityMode = ["full", "medium", "compact"].includes(mode) ? mode : "full";
+  localStorage.setItem("naseqmen.density", densityMode);
+  document.getElementById("app").setAttribute("data-density", densityMode);
+  document.querySelectorAll(".density-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.density === densityMode);
+  });
+  if (rerenderEdges && canvas) {
+    requestAnimationFrame(() => canvas._renderEdges());
+  }
 }
 
 function bindRightTabs() {
@@ -303,6 +383,56 @@ function bindRightTabs() {
 
 function bindPaletteSearch() {
   document.getElementById("palette-search").addEventListener("input", renderPalette);
+}
+
+function bindSidebarResizers() {
+  setupSidebarResizer("resizer-right", "sidebar-right", "naseqmen.rightWidth", "right", 310, 220, 760);
+  setupSidebarResizer("resizer-left", "sidebar-left", "naseqmen.leftWidth", "left", 215, 150, 420);
+}
+
+function setupSidebarResizer(resizerId, sidebarId, storageKey, side, defaultWidth, minWidth, maxWidth) {
+  const resizer = document.getElementById(resizerId);
+  const sidebar = document.getElementById(sidebarId);
+  if (!resizer || !sidebar) return;
+
+  const saved = Number(localStorage.getItem(storageKey));
+  if (saved >= minWidth && saved <= maxWidth) {
+    sidebar.style.width = `${saved}px`;
+  }
+
+  let drag = null;
+
+  resizer.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    resizer.classList.add("dragging");
+    drag = { startX: e.clientX, startWidth: sidebar.getBoundingClientRect().width };
+    document.body.style.cursor = "col-resize";
+  });
+
+  resizer.addEventListener("dblclick", () => {
+    sidebar.style.width = `${defaultWidth}px`;
+    localStorage.setItem(storageKey, String(defaultWidth));
+    if (canvas) requestAnimationFrame(() => canvas._renderEdges());
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    const raw = side === "right" ? drag.startWidth - dx : drag.startWidth + dx;
+    const maxDynamic = Math.min(maxWidth, Math.floor(window.innerWidth * 0.65));
+    const width = Math.round(Math.max(minWidth, Math.min(maxDynamic, raw)));
+    sidebar.style.width = `${width}px`;
+    localStorage.setItem(storageKey, String(width));
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (!drag) return;
+    drag = null;
+    resizer.classList.remove("dragging");
+    document.body.style.cursor = "";
+    if (canvas) requestAnimationFrame(() => canvas._renderEdges());
+  });
 }
 
 function showContextMenu(x, y, items) {
@@ -379,8 +509,18 @@ function showNodeContextMenu(clientX, clientY, node) {
         node.enabled = !node.enabled;
         markDirty();
         canvas.render();
+        applyCachedStates();
       },
     },
+    ...(node.width ? [{
+      label: t("ctx.resetWidth"),
+      action: () => {
+        node.width = null;
+        markDirty();
+        canvas.render();
+        applyCachedStates();
+      },
+    }] : []),
     { sep: true },
     { label: t("ctx.delete"), danger: true, action: () => canvas.deleteSelection() }
   );

@@ -110,16 +110,30 @@ function renderInspector(node, descriptor, callbacks) {
           field.appendChild(sel);
         } else if (p.kind === "multiline") {
           const ta = document.createElement("textarea");
-          ta.rows = 3;
+          ta.rows = 8;
+          ta.className = "insp-code";
+          ta.spellcheck = false;
           ta.value = val;
           ta.addEventListener("input", () => {
             node.parameters[p.key] = ta.value;
             callbacks.onChanged();
           });
           field.appendChild(ta);
+        } else if ((p.kind === "key" || p.kind === "keyCombo") && typeof KeyPicker !== "undefined") {
+          const ctrl = KeyPicker.createInspectorControl(val, p.placeholder, p.kind, (nextVal) => {
+            node.parameters[p.key] = nextVal;
+            callbacks.onChanged();
+          });
+          field.appendChild(ctrl);
+        } else if (p.kind === "ruleList" && typeof KeyPicker !== "undefined") {
+          const ctrl = KeyPicker.createRuleListEditor(val, (nextRules) => {
+            node.parameters[p.key] = nextRules;
+            callbacks.onChanged();
+          });
+          field.appendChild(ctrl);
         } else {
           const inp = document.createElement("input");
-          inp.type = p.kind === "number" ? "number" : "text";
+          inp.type = p.secret ? "password" : (p.kind === "number" ? "number" : "text");
           inp.value = val;
           if (p.placeholder) inp.placeholder = p.placeholder;
           inp.addEventListener("input", () => {
@@ -163,6 +177,127 @@ function renderInspector(node, descriptor, callbacks) {
 
   portsSec.appendChild(list);
   container.appendChild(portsSec);
+
+  // Live Interception device scanner helper
+  if (descriptor.widgetKind === "interception-device") {
+    const icSec = document.createElement("div");
+    icSec.className = "insp-section";
+    icSec.innerHTML = `<div class="insp-title">Connected Interception Devices</div>`;
+
+    const scanBtn = document.createElement("button");
+    scanBtn.className = "btn-secondary";
+    scanBtn.textContent = "Scan Devices";
+    const devList = document.createElement("div");
+    devList.className = "insp-chip-list";
+
+    const renderDevices = (snap) => {
+      devList.innerHTML = "";
+      if (!snap) return;
+      if (!snap.driverAvailable) {
+        devList.innerHTML = `<div class="insp-desc">${snap.lastError || "Interception DLL / driver not available"}</div>`;
+        return;
+      }
+      const devices = snap.devices || [];
+      if (devices.length === 0) {
+        devList.innerHTML = `<div class="insp-desc">No devices detected.</div>`;
+        return;
+      }
+      for (const dev of devices) {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "insp-chip";
+        const friendly = dev.displayName || dev.hardwareId;
+        chip.title = `Slot #${dev.slot} (${dev.kind}) #${dev.instanceIndex}\n${dev.hardwareId}`;
+        chip.textContent = `[${dev.kind === "keyboard" ? "KB" : "M"}#${dev.slot}] ${friendly}`;
+        chip.addEventListener("click", () => {
+          if (node.typeId === "interception.device") {
+            node.parameters.deviceKind = dev.kind;
+            node.parameters.hardwareIdFilter = dev.hardwareId;
+            node.parameters.instanceIndex = dev.instanceIndex || 1;
+            callbacks.onChanged();
+            renderInspector(node, descriptor, callbacks);
+          } else if (node.typeId === "interception.hub") {
+            const prefix = dev.kind === "mouse" ? "mouse" : "kb";
+            const keys = [`${prefix}1Filter`, `${prefix}2Filter`, `${prefix}3Filter`, `${prefix}4Filter`];
+            const emptyKey = keys.find((k) => !node.parameters[k] || !String(node.parameters[k]).trim()) || keys[0];
+            node.parameters[emptyKey] = dev.hardwareId;
+            navigator.clipboard?.writeText(dev.hardwareId);
+            callbacks.onChanged();
+            renderInspector(node, descriptor, callbacks);
+          } else {
+            navigator.clipboard?.writeText(dev.hardwareId);
+          }
+        });
+        devList.appendChild(chip);
+      }
+    };
+
+    const cachedState = callbacks.getWidgetState ? callbacks.getWidgetState(node.id) : null;
+    if (cachedState) renderDevices(cachedState);
+
+    scanBtn.addEventListener("click", async () => {
+      const snap = await Api.getInterceptionDevices(node.parameters?.dllPath || "");
+      renderDevices(snap);
+    });
+
+    icSec.append(scanBtn, devList);
+    container.appendChild(icSec);
+  }
+
+  // Live OBS scenes & audio inputs picker
+  if (descriptor.widgetKind === "obs-status") {
+    const obsState = callbacks.getWidgetState ? callbacks.getWidgetState(node.id) : null;
+    if (obsState && ((obsState.inputs?.length > 0) || (obsState.scenes?.length > 0))) {
+      const obsSec = document.createElement("div");
+      obsSec.className = "insp-section";
+      obsSec.innerHTML = `<div class="insp-title">OBS Discovered</div>`;
+
+      if (obsState.inputs?.length > 0) {
+        const lbl = document.createElement("div");
+        lbl.className = "insp-desc";
+        lbl.textContent = "Audio Inputs (click to set):";
+        const chips = document.createElement("div");
+        chips.className = "insp-chip-list";
+        for (const name of obsState.inputs) {
+          const c = document.createElement("button");
+          c.type = "button";
+          c.className = "insp-chip";
+          c.textContent = name;
+          c.addEventListener("click", () => {
+            node.parameters.audioSource = name;
+            callbacks.onChanged();
+            renderInspector(node, descriptor, callbacks);
+          });
+          chips.appendChild(c);
+        }
+        obsSec.append(lbl, chips);
+      }
+
+      if (obsState.scenes?.length > 0) {
+        const lbl = document.createElement("div");
+        lbl.className = "insp-desc";
+        lbl.style.marginTop = "6px";
+        lbl.textContent = "Scenes (click to set default):";
+        const chips = document.createElement("div");
+        chips.className = "insp-chip-list";
+        for (const name of obsState.scenes) {
+          const c = document.createElement("button");
+          c.type = "button";
+          c.className = "insp-chip";
+          c.textContent = name;
+          c.addEventListener("click", () => {
+            node.parameters.sceneName = name;
+            callbacks.onChanged();
+            renderInspector(node, descriptor, callbacks);
+          });
+          chips.appendChild(c);
+        }
+        obsSec.append(lbl, chips);
+      }
+
+      container.appendChild(obsSec);
+    }
+  }
 }
 
 function renderInfoPanel(workspace, catalog) {

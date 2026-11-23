@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <RootNamespace>NaSeqMen.Tests</RootNamespace>
+    <AssemblyName>NaSeqMen.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NaSeqMen.Core\NaSeqMen.Core.csproj" />
+    <ProjectReference Include="..\NaSeqMen.Engine\NaSeqMen.Engine.csproj" />
+    <ProjectReference Include="..\NaSeqMen.Nodes.Basic\NaSeqMen.Nodes.Basic.csproj" />
+    <ProjectReference Include="..\NaSeqMen.Nodes.Windows\NaSeqMen.Nodes.Windows.csproj" />
+    <ProjectReference Include="..\NaSeqMen.Nodes.Interception\NaSeqMen.Nodes.Interception.csproj" />
+    <ProjectReference Include="..\NaSeqMen.Nodes.Obs\NaSeqMen.Nodes.Obs.csproj" />
+    <ProjectReference Include="..\NaSeqMen.Nodes.Controls\NaSeqMen.Nodes.Controls.csproj" />
+    <ProjectReference Include="..\NaSeqMen.Nodes.Scripting\NaSeqMen.Nodes.Scripting.csproj" />
+  </ItemGroup>
+</Project>

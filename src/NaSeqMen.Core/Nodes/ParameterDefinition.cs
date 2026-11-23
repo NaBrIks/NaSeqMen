@@ -7,6 +7,9 @@ public enum ParameterKind
     Boolean,
     Select,
     Multiline,
+    Key,
+    KeyCombo,
+    RuleList,
 }
 
 public sealed record ParameterOption(string Value, string Label);
@@ -20,5 +23,6 @@ public sealed record ParameterDefinition
     public string? Description { get; init; }
     public string? Placeholder { get; init; }
     public bool Inline { get; init; }
+    public bool Secret { get; init; }
     public IReadOnlyList<ParameterOption>? Options { get; init; }
 }

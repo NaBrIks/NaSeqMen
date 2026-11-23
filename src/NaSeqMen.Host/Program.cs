@@ -4,6 +4,10 @@ using NaSeqMen.Core.Graph;
 using NaSeqMen.Engine;
 using NaSeqMen.Host;
 using NaSeqMen.Nodes.Basic;
+using NaSeqMen.Nodes.Controls;
+using NaSeqMen.Nodes.Interception;
+using NaSeqMen.Nodes.Obs;
+using NaSeqMen.Nodes.Scripting;
 using NaSeqMen.Nodes.Windows;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,6 +27,10 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 var registry = new NodeRegistry();
 registry.RegisterPlugin(new BasicNodesPlugin());
 registry.RegisterPlugin(new WindowsNodesPlugin());
+registry.RegisterPlugin(new InterceptionNodesPlugin());
+registry.RegisterPlugin(new ObsNodesPlugin());
+registry.RegisterPlugin(new ControlsNodesPlugin());
+registry.RegisterPlugin(new ScriptingNodesPlugin());
 
 var workspacePath = Path.Combine(AppContext.BaseDirectory, "workspace.json");
 var repoRootLocal = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", "local"));
@@ -64,6 +72,13 @@ app.MapGet("/api/catalog", (NodeRegistry reg) => Results.Ok(reg.GetDescriptors()
 
 app.MapGet("/api/workspace", (FlowEngine eng) => Results.Ok(eng.CurrentWorkspace));
 
+app.MapGet("/api/state", (FlowEngine eng) => Results.Ok(new
+{
+    paused = eng.IsPaused,
+    widgets = eng.GetWidgetStates(),
+    statuses = eng.GetNodeStatuses(),
+}));
+
 app.MapGet("/api/engine/status", (FlowEngine eng) => Results.Ok(new { paused = eng.IsPaused }));
 
 app.MapPost("/api/engine/pause", async (FlowEngine eng, CancellationToken ct) =>
@@ -99,6 +114,26 @@ app.MapPost("/api/nodes/{nodeId}/trigger", async (string nodeId, TriggerRequest?
     return ok ? Results.Ok(new { ok = true }) : Results.NotFound(new { ok = false, error = "Node not running" });
 });
 
+app.MapPost("/api/nodes/{nodeId}/interact", async (string nodeId, InteractRequest body, FlowEngine eng, CancellationToken ct) =>
+{
+    var ok = await eng.InteractNodeAsync(nodeId, body.Action, body.Data, ct);
+    return ok ? Results.Ok(new { ok = true }) : Results.NotFound(new { ok = false, error = "Node not running" });
+});
+
+app.MapGet("/api/interception/devices", (string? dllPath) =>
+{
+    var snapshot = InterceptionDriverService.Instance.GetSnapshot(
+        string.IsNullOrWhiteSpace(dllPath) ? null : dllPath,
+        refreshDevices: true);
+    return Results.Ok(snapshot);
+});
+
+app.MapPost("/api/interception/panic-release", () =>
+{
+    InterceptionDriverService.Instance.EmergencyReleaseAllFilters();
+    return Results.Ok(new { ok = true });
+});
+
 app.MapGet("/api/debug", (FlowEngine eng) => Results.Ok(eng.GetDebugHistory()));
 
 app.MapDelete("/api/debug", (FlowEngine eng) =>
@@ -107,7 +142,7 @@ app.MapDelete("/api/debug", (FlowEngine eng) =>
     return Results.Ok(new { ok = true });
 });
 
-// --- Server-Sent Events stream for live wire activity, debug entries & node status ---
+// --- Server-Sent Events stream for live wire activity, widgets, debug entries & status ---
 
 app.MapGet("/api/events", async (HttpContext ctx, FlowEngine eng, CancellationToken ct) =>
 {
@@ -148,3 +183,4 @@ app.Lifetime.ApplicationStopping.Register(() =>
 await app.RunAsync();
 
 public sealed record TriggerRequest(object? Payload);
+public sealed record InteractRequest(string Action, JsonElement? Data = null);
