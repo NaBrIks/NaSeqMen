@@ -1,0 +1,118 @@
+{
+  "categories": {
+    "Window": "Window"
+  },
+  "nodes": {
+    "win.window-filter": {
+      "displayName": "Window Filter",
+      "description": "Routes incoming messages based on whether the currently active Windows foreground window matches the process name or title.",
+      "ports": {
+        "in": {
+          "label": "Message",
+          "description": "Incoming message to route based on the active foreground window."
+        },
+        "match": {
+          "label": "Match",
+          "description": "Emitted when the active window matches."
+        },
+        "noMatch": {
+          "label": "No Match",
+          "description": "Emitted when the active window does not match."
+        }
+      },
+      "parameters": {
+        "processName": {
+          "label": "Process",
+          "description": "Process name to match (with or without .exe; case-insensitive exact or substring).",
+          "placeholder": "e.g. notepad"
+        },
+        "titleContains": {
+          "label": "Title",
+          "description": "Optional case-insensitive substring to match in the window title.",
+          "placeholder": "Title substring"
+        },
+        "invert": {
+          "label": "Invert Match",
+          "description": "Swap Match and No Match outputs so everything except the specified window matches."
+        }
+      }
+    },
+    "win.window-target": {
+      "displayName": "Focus Window",
+      "description": "Finds a target window by process name or title, optionally brings it to the foreground, and attaches targetWindow metadata to the message basket.",
+      "ports": {
+        "in": {
+          "label": "Message",
+          "description": "Incoming message that triggers window lookup and optional focusing."
+        },
+        "found": {
+          "label": "Found",
+          "description": "Emitted when the target window is found (and focused if enabled)."
+        },
+        "notFound": {
+          "label": "Not Found",
+          "description": "Emitted if no matching window is open."
+        }
+      },
+      "parameters": {
+        "processName": {
+          "label": "Process",
+          "description": "Target process name (with or without .exe).",
+          "placeholder": "e.g. notepad"
+        },
+        "titleContains": {
+          "label": "Title",
+          "description": "Optional case-insensitive substring to match in the target window title.",
+          "placeholder": "Title substring"
+        },
+        "focus": {
+          "label": "Bring to Front",
+          "description": "Activate the window before forwarding the message (useful before Keyboard Output)."
+        },
+        "waitAfterFocusMs": {
+          "label": "Focus Wait (ms)",
+          "description": "Short pause after focusing (0–2000 ms) so the target window is ready to receive input."
+        }
+      }
+    },
+    "win.window-post-text": {
+      "displayName": "Window PostText",
+      "description": "Sends text in the background via Win32 PostMessage(WM_CHAR) without switching focus. Works best with classic Win32 / Edit controls; modern apps (Electron, games) usually need Focus Window + Keyboard Output.",
+      "ports": {
+        "in": {
+          "label": "Text",
+          "description": "Text payload to post to the target window in the background."
+        },
+        "sent": {
+          "label": "Sent",
+          "description": "Emitted after WM_CHAR messages are posted to the target window."
+        },
+        "notFound": {
+          "label": "Not Found",
+          "description": "Emitted if no target window is resolved or posting fails."
+        }
+      },
+      "parameters": {
+        "active": {
+          "label": "Active (Post)",
+          "description": "Uncheck to mute background posting without disconnecting the wire."
+        },
+        "processName": {
+          "label": "Process",
+          "description": "Leave empty to reuse targetHwnd placed in the basket by Focus Window.",
+          "placeholder": "e.g. notepad (or from Focus Window)"
+        },
+        "titleContains": {
+          "label": "Title",
+          "description": "Optional case-insensitive substring to match in the target window title.",
+          "placeholder": "Title substring"
+        },
+        "childClass": {
+          "label": "Child Class",
+          "description": "Optional Win32 child control class name to receive WM_CHAR (empty = auto-detect Edit/RichEdit/Scintilla).",
+          "placeholder": "Auto (Edit/RichEdit) or class"
+        }
+      }
+    }
+  }
+}

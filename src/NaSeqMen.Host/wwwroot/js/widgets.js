@@ -281,6 +281,47 @@ const NodeWidgets = {
         else if (state.active) txt.textContent = "Driver OK (unmatched)";
         else txt.textContent = `Driver OK (${(state.devices || []).length} dev)`;
       }
+
+      // Decorate Interception Hub output ports directly on the node card with bound brand names
+      if (state.mode === "hub") {
+        const card = host.closest(".node-card");
+        if (card) {
+          const devBySlot = new Map((state.devices || []).map((d) => [d.slot, d]));
+          const bound = state.boundSlots || {};
+          const hubPorts = [
+            ["kb1", "KB 1"], ["kb2", "KB 2"], ["kb3", "KB 3"], ["kb4", "KB 4"],
+            ["mouse1", "Mouse 1"], ["mouse2", "Mouse 2"], ["mouse3", "Mouse 3"], ["mouse4", "Mouse 4"],
+          ];
+          const shortBrand = (dev) => {
+            if (!dev) return "";
+            if (dev.vendorName && dev.vendorName.trim()) return dev.vendorName.trim();
+            const raw = String(dev.displayName || "").replace(/\s*\([^)]*\)\s*$/, "");
+            const dash = raw.indexOf("—");
+            const s = (dash > 0 ? raw.slice(0, dash) : raw).trim();
+            return s.length > 14 ? s.slice(0, 14) : s;
+          };
+          for (const [portId, baseLabel] of hubPorts) {
+            const socket = card.querySelector(`.port-socket[data-port-id="${portId}"][data-dir="output"]`);
+            const row = socket?.closest(".port-row");
+            const lbl = row?.querySelector(".port-label");
+            if (!row || !lbl) continue;
+            const slot = bound[portId];
+            const dev = slot ? devBySlot.get(slot) : null;
+            if (dev) {
+              const brand = shortBrand(dev);
+              lbl.textContent = brand ? `${baseLabel} · ${brand}` : `${baseLabel} (#${slot})`;
+              row.title = `${baseLabel} → ${dev.displayName || dev.hardwareId}\n${dev.hardwareId}`;
+              row.classList.add("is-hub-bound");
+              row.classList.remove("is-hub-unbound");
+            } else {
+              lbl.textContent = baseLabel;
+              row.title = `${baseLabel} (not assigned)`;
+              row.classList.remove("is-hub-bound");
+              row.classList.add("is-hub-unbound");
+            }
+          }
+        }
+      }
     } else if (kind === "hotkey-switch") {
       const lastEl = host.querySelector(".hsw-last");
       if (lastEl) {

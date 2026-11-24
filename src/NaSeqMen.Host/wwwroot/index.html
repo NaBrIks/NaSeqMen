@@ -28,6 +28,11 @@
       </div>
 
       <div class="topbar-actions">
+        <div class="density-group" id="wire-color-group" title="Wire color mode (click Rand again to reshuffle)">
+          <button class="density-btn active" data-wire-color="type" data-i18n="wire.colorType">Type</button>
+          <button class="density-btn" data-wire-color="level" data-i18n="wire.colorLevel">Level</button>
+          <button class="density-btn" data-wire-color="random" data-i18n="wire.colorRandom">Rand</button>
+        </div>
         <div class="density-group" id="density-group" title="Node display density">
           <button class="density-btn active" data-density="full" data-i18n="density.full">Full</button>
           <button class="density-btn" data-density="medium" data-i18n="density.medium">Mid</button>
@@ -41,7 +46,7 @@
         </div>
         <button class="btn-secondary btn-toggle active" id="btn-flash" title="Toggle node & wire flash on events">⚡ <span data-i18n="action.flash">Flash</span></button>
         <button class="btn-secondary" id="btn-reset" data-i18n="action.resetDemo">Reset Demo</button>
-        <button class="btn-secondary btn-lang" id="btn-lang">EN</button>
+        <select class="lang-select" id="lang-select" title="Language"></select>
         <button class="btn-deploy" id="btn-deploy" data-i18n="action.deploy">Deploy</button>
       </div>
     </header>
@@ -80,6 +85,7 @@
         <div class="right-tabs">
           <button class="right-tab active" data-tab="debug" data-i18n="tab.debug">Debug</button>
           <button class="right-tab" data-tab="inspector" data-i18n="tab.inspector">Inspector</button>
+          <button class="right-tab" data-tab="help" data-i18n="tab.help">Help</button>
           <button class="right-tab" data-tab="info" data-i18n="tab.info">Info</button>
         </div>
 
@@ -98,6 +104,15 @@
           <div class="inspector-body" id="inspector-body"></div>
         </section>
 
+        <!-- Help Tab (Node Markdown Docs) -->
+        <section class="right-panel" id="panel-help">
+          <div class="panel-toolbar">
+            <select id="help-node-select" class="help-node-select"></select>
+            <button class="icon-btn" id="btn-help-refresh" title="Reload documentation from disk">↻</button>
+          </div>
+          <div class="help-body" id="help-body"></div>
+        </section>
+
         <!-- Info Tab -->
         <section class="right-panel" id="panel-info">
           <div class="info-body" id="info-body"></div>
@@ -112,9 +127,11 @@
   <script src="js/i18n.js"></script>
   <script src="js/api.js"></script>
   <script src="js/key-picker.js"></script>
+  <script src="js/wire-router.js"></script>
   <script src="js/widgets.js"></script>
   <script src="js/canvas.js"></script>
   <script src="js/inspector.js"></script>
+  <script src="js/help-panel.js"></script>
   <script src="js/debug-panel.js"></script>
   <script src="js/app.js"></script>
 </body>

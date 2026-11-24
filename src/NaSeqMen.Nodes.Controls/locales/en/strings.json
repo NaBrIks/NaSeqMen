@@ -1,0 +1,124 @@
+{
+  "categories": {
+    "Controls": "Controls"
+  },
+  "nodes": {
+    "controls.button": {
+      "displayName": "Virtual Button",
+      "description": "Emulates a momentary or toggle button directly on the canvas, with optional external state feedback.",
+      "ports": {
+        "set": {
+          "label": "Set State",
+          "description": "Optional feedback input to sync visual toggle state without re-emitting."
+        },
+        "press": {
+          "label": "Press",
+          "description": "Emits payload on button press or toggle change."
+        },
+        "release": {
+          "label": "Release",
+          "description": "Emits payload on button release in momentary mode."
+        }
+      },
+      "parameters": {
+        "buttonLabel": {
+          "label": "Button Text",
+          "description": "Caption displayed directly on the canvas button widget."
+        },
+        "mode": {
+          "label": "Mode",
+          "description": "Choose between a momentary push-button and a latching on/off toggle.",
+          "options": {
+            "momentary": "Momentary",
+            "toggle": "Toggle"
+          }
+        },
+        "payload": {
+          "label": "On / Press Payload",
+          "description": "Value emitted on press or when toggled ON. Supports string, number, and true/false."
+        },
+        "offPayload": {
+          "label": "Off Payload",
+          "description": "Value emitted on release (momentary) or when toggled OFF (toggle). Supports string, number, and true/false."
+        },
+        "topic": {
+          "label": "Topic",
+          "description": "Message topic assigned to emitted button events."
+        }
+      }
+    },
+    "controls.slider": {
+      "displayName": "Virtual Slider",
+      "description": "Emulates an analog slider or fader directly on the canvas, with optional external feedback sync.",
+      "ports": {
+        "set": {
+          "label": "Set Value",
+          "description": "External feedback input to update slider position without causing a loop."
+        },
+        "value": {
+          "label": "Value",
+          "description": "Emits the current numeric value whenever adjusted."
+        }
+      },
+      "parameters": {
+        "min": {
+          "label": "Min",
+          "description": "Minimum value at the lower end of the slider range."
+        },
+        "max": {
+          "label": "Max",
+          "description": "Maximum value at the upper end of the slider range."
+        },
+        "step": {
+          "label": "Step",
+          "description": "Increment step size when dragging the slider."
+        },
+        "defaultValue": {
+          "label": "Initial",
+          "description": "Starting slider value when the flow starts."
+        },
+        "unit": {
+          "label": "Unit",
+          "description": "Display unit suffix shown on the widget and status badge (e.g. %, dB)."
+        },
+        "topic": {
+          "label": "Topic",
+          "description": "Message topic assigned to emitted slider values."
+        }
+      }
+    },
+    "controls.vu-meter": {
+      "displayName": "VU Meter",
+      "description": "Live visual audio or level meter with peak hold and optional source filtering.",
+      "ports": {
+        "in": {
+          "label": "Level",
+          "description": "Incoming numeric level measurement."
+        },
+        "out": {
+          "label": "Pass-through",
+          "description": "Forwards matching messages downstream."
+        }
+      },
+      "parameters": {
+        "sourceFilter": {
+          "label": "Source Filter",
+          "description": "Optional case-insensitive substring matched against inputName or topic; non-matching messages are ignored.",
+          "placeholder": "Optional OBS source name"
+        },
+        "min": {
+          "label": "Min",
+          "description": "Input value corresponding to 0% on the meter bar."
+        },
+        "max": {
+          "label": "Max",
+          "description": "Input value corresponding to 100% on the meter bar."
+        },
+        "unit": {
+          "label": "Unit",
+          "description": "Display unit suffix used when no dB property is present."
+        }
+      }
+    }
+  }
+}

@@ -6,14 +6,33 @@
     <RootNamespace>NaSeqMen.Host</RootNamespace>
     <AssemblyName>NaSeqMen.Host</AssemblyName>
   </PropertyGroup>
+
+  <!-- Built-in core & base node modules -->
   <ItemGroup>
     <ProjectReference Include="..\NaSeqMen.Core\NaSeqMen.Core.csproj" />
     <ProjectReference Include="..\NaSeqMen.Engine\NaSeqMen.Engine.csproj" />
     <ProjectReference Include="..\NaSeqMen.Nodes.Basic\NaSeqMen.Nodes.Basic.csproj" />
-    <ProjectReference Include="..\NaSeqMen.Nodes.Windows\NaSeqMen.Nodes.Windows.csproj" />
-    <ProjectReference Include="..\NaSeqMen.Nodes.Interception\NaSeqMen.Nodes.Interception.csproj" />
-    <ProjectReference Include="..\NaSeqMen.Nodes.Obs\NaSeqMen.Nodes.Obs.csproj" />
     <ProjectReference Include="..\NaSeqMen.Nodes.Controls\NaSeqMen.Nodes.Controls.csproj" />
     <ProjectReference Include="..\NaSeqMen.Nodes.Scripting\NaSeqMen.Nodes.Scripting.csproj" />
   </ItemGroup>
+
+  <!-- Build-order only for external dynamic plugins (NO compile/runtime reference in Host!) -->
+  <ItemGroup>
+    <ExternalPluginProject Include="..\NaSeqMen.Nodes.Obs\NaSeqMen.Nodes.Obs.csproj" PluginName="NaSeqMen.Nodes.Obs" PluginTfm="net11.0" />
+    <ExternalPluginProject Include="..\NaSeqMen.Nodes.Interception\NaSeqMen.Nodes.Interception.csproj" PluginName="NaSeqMen.Nodes.Interception" PluginTfm="net11.0-windows" />
+    <ExternalPluginProject Include="..\NaSeqMen.Nodes.Windows\NaSeqMen.Nodes.Windows.csproj" PluginName="NaSeqMen.Nodes.Windows" PluginTfm="net11.0-windows" />
+    <ProjectReference Include="@(ExternalPluginProject)" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+  <!-- Automatically stage external plugins into $(OutputPath)plugins\<PluginName>\ -->
+  <Target Name="StageExternalPlugins" AfterTargets="Build">
+    <ItemGroup>
+      <_ObsPluginFiles Include="..\NaSeqMen.Nodes.Obs\bin\$(Configuration)\net11.0\**\*.*" Exclude="..\NaSeqMen.Nodes.Obs\bin\$(Configuration)\net11.0\ref\**\*.*" />
+      <_InterceptionPluginFiles Include="..\NaSeqMen.Nodes.Interception\bin\$(Configuration)\net11.0-windows\**\*.*" Exclude="..\NaSeqMen.Nodes.Interception\bin\$(Configuration)\net11.0-windows\ref\**\*.*" />
+      <_WindowsPluginFiles Include="..\NaSeqMen.Nodes.Windows\bin\$(Configuration)\net11.0-windows\**\*.*" Exclude="..\NaSeqMen.Nodes.Windows\bin\$(Configuration)\net11.0-windows\ref\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_ObsPluginFiles)" DestinationFiles="@(_ObsPluginFiles->'$(OutputPath)plugins\NaSeqMen.Nodes.Obs\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_InterceptionPluginFiles)" DestinationFiles="@(_InterceptionPluginFiles->'$(OutputPath)plugins\NaSeqMen.Nodes.Interception\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_WindowsPluginFiles)" DestinationFiles="@(_WindowsPluginFiles->'$(OutputPath)plugins\NaSeqMen.Nodes.Windows\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

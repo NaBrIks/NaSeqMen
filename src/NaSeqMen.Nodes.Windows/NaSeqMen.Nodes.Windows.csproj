@@ -1,10 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net11.0-windows</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
     <RootNamespace>NaSeqMen.Nodes.Windows</RootNamespace>
     <AssemblyName>NaSeqMen.Nodes.Windows</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\NaSeqMen.Core\NaSeqMen.Core.csproj" />
+    <ProjectReference Include="..\NaSeqMen.Core\NaSeqMen.Core.csproj">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="locales\**\*.*" />
+    <None Include="locales\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="locales\**\*.*" LogicalName="locales/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

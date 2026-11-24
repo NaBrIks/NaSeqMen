@@ -1,0 +1,103 @@
+{
+  "categories": {
+    "OBS": "OBS"
+  },
+  "nodes": {
+    "obs.studio": {
+      "displayName": "OBS Studio",
+      "description": "Connects to OBS Studio via WebSocket v5 for live audio VU meters, scene/mute/volume events, and remote control.",
+      "ports": {
+        "scene": {
+          "label": "Set Scene",
+          "description": "Switches the active OBS program scene to the payload string (or Default Scene if empty)."
+        },
+        "volume": {
+          "label": "Set Volume",
+          "description": "Sets input volume for Audio Input (or properties.inputName) using the selected Volume Scale."
+        },
+        "mute": {
+          "label": "Mute / Toggle",
+          "description": "Sets explicit mute state on true/false, or toggles mute on any other payload."
+        },
+        "record": {
+          "label": "Record",
+          "description": "Starts (true/\"start\"), stops (false/\"stop\"), or toggles recording."
+        },
+        "stream": {
+          "label": "Stream",
+          "description": "Starts (true/\"start\"), stops (false/\"stop\"), or toggles streaming."
+        },
+        "command": {
+          "label": "Raw Request",
+          "description": "Sends an arbitrary OBS WebSocket v5 request (string or { requestType, requestData })."
+        },
+        "vuLevel": {
+          "label": "VU Level (0..100)",
+          "description": "Emits live audio level percentage (0..100) with stereo leftPercent/rightPercent and db properties."
+        },
+        "sceneChanged": {
+          "label": "Scene Changed",
+          "description": "Emits the new program scene name whenever the active scene changes in OBS."
+        },
+        "muteChanged": {
+          "label": "Mute Changed",
+          "description": "Emits boolean mute state whenever a matching audio input is muted or unmuted."
+        },
+        "volumeChanged": {
+          "label": "Volume Changed",
+          "description": "Emits the updated volume value (in the chosen Volume Scale) when a matching input changes."
+        },
+        "status": {
+          "label": "Status / Response",
+          "description": "Emits connection events, stream/record state changes, raw request responses, and errors."
+        }
+      },
+      "parameters": {
+        "enabled": {
+          "label": "Connect",
+          "description": "Enable or disable the OBS WebSocket connection."
+        },
+        "host": {
+          "label": "Host",
+          "description": "Hostname or IP address of the OBS WebSocket server."
+        },
+        "port": {
+          "label": "Port",
+          "description": "TCP port of the OBS WebSocket v5 server (default 4455)."
+        },
+        "password": {
+          "label": "Password",
+          "description": "OBS WebSocket server password (leave empty if authentication is disabled).",
+          "placeholder": "OBS WebSocket password"
+        },
+        "audioSource": {
+          "label": "Audio Input",
+          "description": "Default OBS audio input name for volume/mute commands and event filtering (empty = all inputs).",
+          "placeholder": "e.g. Mic/Aux (empty = all)"
+        },
+        "sceneName": {
+          "label": "Default Scene",
+          "description": "Fallback scene name used when an empty payload arrives on the Set Scene input.",
+          "placeholder": "Optional scene name"
+        },
+        "subscribeMeters": {
+          "label": "Audio VU Meters",
+          "description": "Subscribe to high-volume OBS InputVolumeMeters events for live VU output."
+        },
+        "meterThrottleMs": {
+          "label": "VU Interval (ms)",
+          "description": "Minimum interval in milliseconds between VU emissions per audio source (0 = unthrottled)."
+        },
+        "volumeScale": {
+          "label": "Volume Scale",
+          "description": "Numeric unit used by the Set Volume input and Volume Changed output.",
+          "options": {
+            "percent": "0..100%",
+            "mul": "0..1 Multiplier",
+            "db": "-60..0 dB"
+          }
+        }
+      }
+    }
+  }
+}

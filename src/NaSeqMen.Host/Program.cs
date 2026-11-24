@@ -5,10 +5,7 @@ using NaSeqMen.Engine;
 using NaSeqMen.Host;
 using NaSeqMen.Nodes.Basic;
 using NaSeqMen.Nodes.Controls;
-using NaSeqMen.Nodes.Interception;
-using NaSeqMen.Nodes.Obs;
 using NaSeqMen.Nodes.Scripting;
-using NaSeqMen.Nodes.Windows;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,12 +22,16 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 });
 
 var registry = new NodeRegistry();
-registry.RegisterPlugin(new BasicNodesPlugin());
-registry.RegisterPlugin(new WindowsNodesPlugin());
-registry.RegisterPlugin(new InterceptionNodesPlugin());
-registry.RegisterPlugin(new ObsNodesPlugin());
-registry.RegisterPlugin(new ControlsNodesPlugin());
-registry.RegisterPlugin(new ScriptingNodesPlugin());
+
+// Built-in base modules
+registry.RegisterPlugin(new BasicNodesPlugin(), source: "built-in");
+registry.RegisterPlugin(new ControlsNodesPlugin(), source: "built-in");
+registry.RegisterPlugin(new ScriptingNodesPlugin(), source: "built-in");
+
+// Dynamically discovered external plugins from <AppDir>\plugins\
+var pluginsDir = Environment.GetEnvironmentVariable("NASEQMEN_PLUGINS_DIR")
+    ?? Path.Combine(AppContext.BaseDirectory, "plugins");
+PluginLoader.LoadFromDirectory(pluginsDir, registry);
 
 var workspacePath = Path.Combine(AppContext.BaseDirectory, "workspace.json");
 var repoRootLocal = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", "local"));
@@ -41,8 +42,14 @@ if (Directory.Exists(repoRootLocal))
 
 var store = new WorkspaceStore(workspacePath);
 var engine = new FlowEngine(registry);
+var devProjectsRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, ".."));
+var localization = new NodeLocalizationService(
+    registry,
+    AppContext.BaseDirectory,
+    Directory.Exists(devProjectsRoot) ? devProjectsRoot : null);
 
 builder.Services.AddSingleton(registry);
+builder.Services.AddSingleton(localization);
 builder.Services.AddSingleton(store);
 builder.Services.AddSingleton(engine);
 
@@ -68,7 +75,43 @@ app.UseStaticFiles();
 
 // --- REST API ---
 
-app.MapGet("/api/catalog", (NodeRegistry reg) => Results.Ok(reg.GetDescriptors()));
+app.MapGet("/api/catalog", (string? lang, NodeLocalizationService loc) => Results.Ok(loc.GetLocalizedCatalog(lang)));
+
+app.MapGet("/api/languages", (NodeLocalizationService loc) => Results.Ok(loc.GetAvailableLanguages()));
+
+app.MapGet("/api/docs/{typeId}", (string typeId, string? lang, NodeLocalizationService loc) =>
+{
+    var doc = loc.GetNodeDocumentation(typeId, lang);
+    return doc is null ? Results.NotFound(new { error = $"Unknown node type '{typeId}'." }) : Results.Ok(doc);
+});
+
+app.MapGet("/api/plugins", (NodeRegistry reg) => Results.Ok(new
+{
+    pluginsDirectory = pluginsDir,
+    plugins = reg.GetLoadedPlugins(),
+}));
+
+app.MapPost("/api/plugins/{pluginId}/{action}", async (string pluginId, string action, HttpRequest req, NodeRegistry reg, CancellationToken ct) =>
+{
+    JsonElement? body = null;
+    if (req.ContentLength is > 0)
+    {
+        try
+        {
+            body = await JsonSerializer.DeserializeAsync<JsonElement>(req.Body, cancellationToken: ct);
+        }
+        catch
+        {
+            // Ignore empty/malformed optional body
+        }
+    }
+
+    var (found, result) = await reg.InvokePluginActionAsync(pluginId, action, body, ct);
+    if (!found)
+        return Results.NotFound(new { ok = false, error = $"Plugin '{pluginId}' not loaded" });
+
+    return Results.Ok(result ?? new { ok = true });
+});
 
 app.MapGet("/api/workspace", (FlowEngine eng) => Results.Ok(eng.CurrentWorkspace));
 
@@ -118,20 +161,6 @@ app.MapPost("/api/nodes/{nodeId}/interact", async (string nodeId, InteractReques
 {
     var ok = await eng.InteractNodeAsync(nodeId, body.Action, body.Data, ct);
     return ok ? Results.Ok(new { ok = true }) : Results.NotFound(new { ok = false, error = "Node not running" });
-});
-
-app.MapGet("/api/interception/devices", (string? dllPath) =>
-{
-    var snapshot = InterceptionDriverService.Instance.GetSnapshot(
-        string.IsNullOrWhiteSpace(dllPath) ? null : dllPath,
-        refreshDevices: true);
-    return Results.Ok(snapshot);
-});
-
-app.MapPost("/api/interception/panic-release", () =>
-{
-    InterceptionDriverService.Instance.EmergencyReleaseAllFilters();
-    return Results.Ok(new { ok = true });
 });
 
 app.MapGet("/api/debug", (FlowEngine eng) => Results.Ok(eng.GetDebugHistory()));

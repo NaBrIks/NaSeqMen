@@ -1,0 +1,373 @@
+{
+  "categories": {
+    "Interception": "Interception"
+  },
+  "nodes": {
+    "interception.hub": {
+      "displayName": "Interception Hub",
+      "description": "Multi-device Interception driver hub exposing up to 4 keyboard outputs and 4 mouse outputs with a shared loop-back Return / Action input.",
+      "ports": {
+        "return": {
+          "label": "Return / Action",
+          "description": "Loop-back stroke decision (suppress/pass + replacement actions) or direct hardware injection port."
+        },
+        "all": {
+          "label": "All Events",
+          "description": "Universal monitor output receiving events from all active channels, or all connected devices when Monitor All Devices is enabled."
+        },
+        "kb1": {
+          "label": "KB 1",
+          "description": "Stroke events captured from keyboard channel 1."
+        },
+        "kb2": {
+          "label": "KB 2",
+          "description": "Stroke events captured from keyboard channel 2."
+        },
+        "kb3": {
+          "label": "KB 3",
+          "description": "Stroke events captured from keyboard channel 3."
+        },
+        "kb4": {
+          "label": "KB 4",
+          "description": "Stroke events captured from keyboard channel 4."
+        },
+        "mouse1": {
+          "label": "Mouse 1",
+          "description": "Stroke events captured from mouse channel 1."
+        },
+        "mouse2": {
+          "label": "Mouse 2",
+          "description": "Stroke events captured from mouse channel 2."
+        },
+        "mouse3": {
+          "label": "Mouse 3",
+          "description": "Stroke events captured from mouse channel 3."
+        },
+        "mouse4": {
+          "label": "Mouse 4",
+          "description": "Stroke events captured from mouse channel 4."
+        }
+      },
+      "parameters": {
+        "active": {
+          "label": "Active",
+          "description": "Enable hardware hooks for configured hub channels. Disabled by default for safety."
+        },
+        "monitorAll": {
+          "label": "Monitor All Devices",
+          "description": "Capture all connected keyboards and mice on the All Events port for device discovery and probing."
+        },
+        "defaultAction": {
+          "label": "Default Action",
+          "description": "Fallback decision applied if the loop-back times out or omits an explicit suppress flag.",
+          "options": {
+            "pass": "Pass",
+            "suppress": "Suppress"
+          }
+        },
+        "kb1Filter": {
+          "label": "KB 1 Filter",
+          "description": "Hardware ID substring, HWID#N instance selector, or explicit keyboard slot (1–10) for channel KB 1.",
+          "placeholder": "HWID substring, HWID#N, or slot 1-10"
+        },
+        "kb2Filter": {
+          "label": "KB 2 Filter",
+          "description": "Hardware ID substring, HWID#N instance selector, or explicit keyboard slot (1–10) for channel KB 2.",
+          "placeholder": "HWID substring, HWID#N, or slot 1-10"
+        },
+        "kb3Filter": {
+          "label": "KB 3 Filter",
+          "description": "Hardware ID substring, HWID#N instance selector, or explicit keyboard slot (1–10) for channel KB 3.",
+          "placeholder": "HWID substring, HWID#N, or slot 1-10"
+        },
+        "kb4Filter": {
+          "label": "KB 4 Filter",
+          "description": "Hardware ID substring, HWID#N instance selector, or explicit keyboard slot (1–10) for channel KB 4.",
+          "placeholder": "HWID substring, HWID#N, or slot 1-10"
+        },
+        "mouse1Filter": {
+          "label": "Mouse 1 Filter",
+          "description": "Hardware ID substring, HWID#N instance selector, or explicit mouse slot (11–20) for channel Mouse 1.",
+          "placeholder": "HWID substring, HWID#N, or slot 11-20"
+        },
+        "mouse2Filter": {
+          "label": "Mouse 2 Filter",
+          "description": "Hardware ID substring, HWID#N instance selector, or explicit mouse slot (11–20) for channel Mouse 2.",
+          "placeholder": "HWID substring, HWID#N, or slot 11-20"
+        },
+        "mouse3Filter": {
+          "label": "Mouse 3 Filter",
+          "description": "Hardware ID substring, HWID#N instance selector, or explicit mouse slot (11–20) for channel Mouse 3.",
+          "placeholder": "HWID substring, HWID#N, or slot 11-20"
+        },
+        "mouse4Filter": {
+          "label": "Mouse 4 Filter",
+          "description": "Hardware ID substring, HWID#N instance selector, or explicit mouse slot (11–20) for channel Mouse 4.",
+          "placeholder": "HWID substring, HWID#N, or slot 11-20"
+        },
+        "captureMove": {
+          "label": "Capture Mouse Move",
+          "description": "Include relative mouse movement events on mouse channels (off by default to reduce event volume)."
+        },
+        "decisionTimeoutMs": {
+          "label": "Decision Timeout (ms)",
+          "description": "Maximum time to wait for a loop-back decision before applying Default Action."
+        },
+        "dllPath": {
+          "label": "DLL Path",
+          "description": "Optional explicit path to interception.dll. Leave empty to auto-detect.",
+          "placeholder": "Auto-detect interception.dll"
+        }
+      }
+    },
+    "interception.device": {
+      "displayName": "Interception Device",
+      "description": "Captures hardware keyboard or mouse strokes from a single Interception device slot (matched by Hardware ID or explicit slot) and accepts suppress/replace decisions or direct injections on Return / Action.",
+      "ports": {
+        "return": {
+          "label": "Return / Action",
+          "description": "Loop-back stroke decision (suppress/pass + sendKeys/sendMouse) or direct hardware injection when no correlationId is pending."
+        },
+        "out": {
+          "label": "Stroke Event",
+          "description": "Emits captured hardware stroke basket containing correlationId, device metadata, key/button, and phase."
+        }
+      },
+      "parameters": {
+        "active": {
+          "label": "Active",
+          "description": "Enable hardware hook for the matched device. Disabled by default for safety."
+        },
+        "deviceKind": {
+          "label": "Device Kind",
+          "description": "Type of hardware device to match and capture.",
+          "options": {
+            "keyboard": "Keyboard",
+            "mouse": "Mouse"
+          }
+        },
+        "hardwareIdFilter": {
+          "label": "Hardware ID",
+          "description": "Case-insensitive Hardware ID substring persistent across USB port changes, or * for the first device of the selected kind.",
+          "placeholder": "HWID substring (e.g. VID_xxxx&MI_00)"
+        },
+        "instanceIndex": {
+          "label": "Instance Index",
+          "description": "1-based index used to distinguish multiple identical devices matching the same Hardware ID filter."
+        },
+        "explicitSlot": {
+          "label": "Explicit Slot",
+          "description": "0 = match by Hardware ID; 1–10 for keyboard slots or 11–20 for mouse slots."
+        },
+        "captureMove": {
+          "label": "Capture Mouse Move",
+          "description": "Include relative mouse movement events (applies only when Device Kind is Mouse)."
+        },
+        "defaultAction": {
+          "label": "Default Action",
+          "description": "Fallback decision applied if the loop-back times out or omits an explicit suppress flag.",
+          "options": {
+            "pass": "Pass",
+            "suppress": "Suppress"
+          }
+        },
+        "decisionTimeoutMs": {
+          "label": "Decision Timeout (ms)",
+          "description": "Maximum time to wait for a loop-back decision before applying Default Action."
+        },
+        "dllPath": {
+          "label": "DLL Path",
+          "description": "Optional explicit path to interception.dll. Leave empty to auto-detect.",
+          "placeholder": "Auto-detect interception.dll"
+        },
+        "testKey": {
+          "label": "Test Trigger Key",
+          "description": "Key or mouse button name emitted when manually triggering this node for flow testing.",
+          "placeholder": "e.g. D or X1"
+        }
+      }
+    },
+    "interception.hotkey-switch": {
+      "displayName": "Hotkey Switch",
+      "description": "Evaluates multiple hotkey and mouse button remap rules together with unified modifier buffering, timeout handling, and optional delayed replay of unmatched modifiers.",
+      "ports": {
+        "in": {
+          "label": "Event",
+          "description": "Incoming Interception stroke event basket."
+        },
+        "return": {
+          "label": "Return",
+          "description": "Connect back to Interception Device/Hub [Return / Action]. Carries all stroke decisions and delayed modifier replays."
+        },
+        "matched": {
+          "label": "Matched",
+          "description": "Optional tap emitted only when a rule matches (for example, to Debug, OBS, or downstream actions)."
+        }
+      },
+      "parameters": {
+        "rules": {
+          "label": "Hotkey Rules",
+          "description": "List of From -> To hotkey, chord, or mouse button remap rules evaluated together."
+        },
+        "replayUnmatchedModifier": {
+          "label": "Replay Unmatched Mod",
+          "description": "If a prefix modifier (such as LWin) is pressed and no rule matches, replay it to Windows so standard shortcuts and bare taps continue to work."
+        },
+        "chordWindowMs": {
+          "label": "Replay Window (ms)",
+          "description": "Auto-replay a held prefix modifier after this timeout if no trigger arrives (0 = wait until another key is pressed or the modifier is released)."
+        },
+        "targetKeyboardFilter": {
+          "label": "Target KB Filter",
+          "description": "Optional Hardware ID substring selecting which keyboard slot injects keyboard actions triggered from a mouse.",
+          "placeholder": "Optional target KB HWID"
+        }
+      }
+    },
+    "interception.probe": {
+      "displayName": "Input Probe",
+      "description": "Live mini-terminal for inspecting hardware strokes. When armed with blocking enabled, suppresses original input while showing exact device slots and key/button codes; auto-disarms on inactivity, max duration, or Esc.",
+      "ports": {
+        "in": {
+          "label": "Event",
+          "description": "Incoming stroke basket from Interception Device or Hub."
+        },
+        "return": {
+          "label": "Return",
+          "description": "Connect back to Interception Device/Hub [Return / Action]. Suppresses while armed with blocking enabled; passes through otherwise."
+        },
+        "observed": {
+          "label": "Observed",
+          "description": "Optional tap forwarding every observed stroke event (for example, to a Debug node)."
+        }
+      },
+      "parameters": {
+        "blockWhenArmed": {
+          "label": "Block When Armed",
+          "description": "Suppress original strokes while armed so inspected keys and buttons do not trigger Windows actions."
+        },
+        "idleTimeoutSec": {
+          "label": "Idle Auto-Off (s)",
+          "description": "Automatically disarm capture if no events arrive for this many seconds."
+        },
+        "maxDurationSec": {
+          "label": "Max Armed (s)",
+          "description": "Hard safety cap on how long blocking capture can remain armed."
+        },
+        "maxLines": {
+          "label": "Terminal Lines",
+          "description": "Maximum number of recent stroke lines displayed in the live mini-terminal."
+        }
+      }
+    },
+    "interception.stroke-action": {
+      "displayName": "Stroke Action",
+      "description": "Matches a configured key or mouse button and phase, marks the basket to suppress or pass the original stroke, and optionally attaches replacement key chords, sequences, or mouse actions.",
+      "ports": {
+        "in": {
+          "label": "Event",
+          "description": "Incoming Interception stroke event basket."
+        },
+        "matched": {
+          "label": "Matched",
+          "description": "Emitted when the stroke matches Match Key and Phase, with decision and replacement action properties attached."
+        },
+        "unmatched": {
+          "label": "Other",
+          "description": "Emitted unchanged when the stroke does not match."
+        }
+      },
+      "parameters": {
+        "matchKey": {
+          "label": "Match Key",
+          "description": "Key or mouse button name(s) separated by commas, or * to match any stroke.",
+          "placeholder": "Key/Button (e.g. D, LWin, X1, *)"
+        },
+        "matchPhase": {
+          "label": "Phase",
+          "description": "Stroke phase to match.",
+          "options": {
+            "any": "Any",
+            "down": "Down",
+            "up": "Up"
+          }
+        },
+        "suppress": {
+          "label": "Suppress",
+          "description": "Controls whether the original hardware stroke is suppressed, passed through, or left unchanged.",
+          "options": {
+            "suppress": "Suppress",
+            "pass": "Pass",
+            "unchanged": "Unchanged"
+          }
+        },
+        "sendAction": {
+          "label": "Send Action",
+          "description": "Optional replacement key chord, comma-separated sequence, or mouse button action.",
+          "placeholder": "e.g. LCtrl+X or LCtrl+K, LCtrl+D"
+        },
+        "sendMode": {
+          "label": "Send Mode",
+          "description": "Controls when replacement strokes are generated relative to key down and up events.",
+          "options": {
+            "tapOnDown": "Tap on Down",
+            "mirrorHold": "Mirror Hold",
+            "tapOnUp": "Tap on Up"
+          }
+        },
+        "targetKeyboardFilter": {
+          "label": "Target KB Filter",
+          "description": "Optional Hardware ID substring selecting which keyboard slot injects replacement keyboard actions.",
+          "placeholder": "Optional target KB HWID"
+        }
+      }
+    },
+    "interception.chord-matcher": {
+      "displayName": "Chord Matcher",
+      "description": "Detects a configured modifier + trigger key chord within a time window using in-memory held state. Wire both Matched and Other back to Return / Action for immediate loop-back decisions.",
+      "ports": {
+        "in": {
+          "label": "Event",
+          "description": "Incoming Interception stroke event basket."
+        },
+        "matched": {
+          "label": "Matched",
+          "description": "Emitted when Trigger Key is pressed while Modifier Key is held within Chord Window."
+        },
+        "other": {
+          "label": "Other",
+          "description": "Emitted for modifier strokes, trigger release, and non-matching keys (carrying suppress flags when enabled)."
+        }
+      },
+      "parameters": {
+        "modifierKey": {
+          "label": "Modifier Key",
+          "description": "Key that must be held before pressing Trigger Key.",
+          "placeholder": "Modifier (e.g. LWin, LCtrl)"
+        },
+        "triggerKey": {
+          "label": "Trigger Key",
+          "description": "Second key pressed while Modifier Key is held to complete the chord.",
+          "placeholder": "Trigger key (e.g. D)"
+        },
+        "suppressModifier": {
+          "label": "Suppress Modifier",
+          "description": "Suppress the original modifier key down and up events."
+        },
+        "suppressTrigger": {
+          "label": "Suppress Trigger",
+          "description": "Suppress the trigger key down and matching release when the chord fires."
+        },
+        "sendAction": {
+          "label": "Send Action",
+          "description": "Optional replacement key chord, sequence, or mouse action injected when the chord matches.",
+          "placeholder": "Replacement e.g. LCtrl+X"
+        },
+        "chordWindowMs": {
+          "label": "Chord Window (ms)",
+          "description": "Maximum time between modifier press and trigger press (0 = unlimited while held)."
+        }
+      }
+    }
+  }
+}

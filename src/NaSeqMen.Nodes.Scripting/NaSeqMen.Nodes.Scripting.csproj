@@ -10,4 +10,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.14.0" />
   </ItemGroup>
+  <ItemGroup>
+    <None Remove="locales\**\*.*" />
+    <None Include="locales\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="locales\$(MSBuildProjectName)\%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="locales\**\*.*" LogicalName="locales/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>

@@ -1,4 +1,5 @@
 let catalog = [];
+let pluginsInfo = null;
 let workspace = null;
 let activeFlowId = null;
 let dirty = false;
@@ -23,6 +24,8 @@ async function init() {
     onSpawnNode: spawnNode,
     onCanvasContextMenu: showCanvasContextMenu,
     onNodeContextMenu: showNodeContextMenu,
+    onOpenNodeHelp: (typeId) => HelpPanel.showNode(typeId, true),
+    onAfterRender: applyCachedStates,
   });
 
   bindTopbar();
@@ -32,8 +35,13 @@ async function init() {
 
   document.addEventListener("click", hideContextMenu);
 
-  catalog = await Api.getCatalog();
+  const langs = await Api.getLanguages();
+  populateLanguageSelector(langs);
+
+  catalog = await Api.getCatalog(currentLang);
+  pluginsInfo = await Api.getPlugins();
   canvas.setCatalog(catalog);
+  HelpPanel.init(catalog);
   renderPalette();
 
   workspace = await Api.getWorkspace();
@@ -91,7 +99,7 @@ function selectFlow(flowId) {
   renderFlowTabs();
   canvas.setFlow(getActiveFlow());
   applyCachedStates();
-  renderInfoPanel(workspace, catalog);
+  renderInfoPanel(workspace, catalog, pluginsInfo);
 }
 
 function applyCachedStates() {
@@ -112,7 +120,7 @@ function setDirty(isDirty) {
 
 function markDirty() {
   setDirty(true);
-  renderInfoPanel(workspace, catalog);
+  renderInfoPanel(workspace, catalog, pluginsInfo);
 }
 
 function renderFlowTabs() {
@@ -183,7 +191,13 @@ function renderPalette() {
       item.innerHTML = `
         <span class="palette-item-name">${desc.displayName}</span>
         <span class="palette-item-ports">${desc.inputs.length}→${desc.outputs.length}</span>
+        <button type="button" class="palette-help-btn" title="${t("help.openDocs")}">?</button>
       `;
+
+      item.querySelector(".palette-help-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        HelpPanel.showNode(desc.typeId, true);
+      });
 
       item.addEventListener("dragstart", (e) => {
         e.dataTransfer.setData("text/naseqmen-node-type", desc.typeId);
@@ -233,6 +247,9 @@ function spawnNode(typeId, x, y) {
 
 function handleSelectionChange(node) {
   const desc = node ? catalog.find((d) => d.typeId === node.typeId) : null;
+  if (node && typeof HelpPanel !== "undefined") {
+    HelpPanel.showNode(node.typeId, false);
+  }
   renderInspector(node, desc, {
     onChanged: () => {
       markDirty();
@@ -241,6 +258,7 @@ function handleSelectionChange(node) {
     },
     onTrigger: handleTriggerNode,
     onDelete: () => canvas.deleteSelection(),
+    onOpenHelp: (typeId) => HelpPanel.showNode(typeId, true),
     getWidgetState: (id) => widgetStates.get(id) || null,
   });
 }
@@ -328,8 +346,19 @@ function bindTopbar() {
   document.getElementById("btn-fit").addEventListener("click", () => canvas.fitView());
 
   applyDensityMode(densityMode, false);
-  document.querySelectorAll(".density-btn").forEach((btn) => {
+  document.querySelectorAll(".density-btn[data-density]").forEach((btn) => {
     btn.addEventListener("click", () => applyDensityMode(btn.dataset.density, true));
+  });
+
+  applyWireColorMode(canvas.wireColorMode, false);
+  document.querySelectorAll("[data-wire-color]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.wireColor;
+      if (next === "random" && canvas.wireColorMode === "random") {
+        canvas.wireRandomSeed++;
+      }
+      applyWireColorMode(next, true);
+    });
   });
 
   const flashBtn = document.getElementById("btn-flash");
@@ -348,21 +377,50 @@ function bindTopbar() {
     setTimeout(() => canvas.fitView(), 40);
   });
 
-  document.getElementById("btn-lang").addEventListener("click", () => {
-    toggleLang();
-    setDirty(dirty);
-    updateStatusBadge();
-    debugPanel.render();
-    handleSelectionChange(canvas._getSingleSelectedNode());
-    renderInfoPanel(workspace, catalog);
+  document.getElementById("lang-select").addEventListener("change", async (e) => {
+    await switchLanguage(e.target.value);
   });
+}
+
+function populateLanguageSelector(languages) {
+  const sel = document.getElementById("lang-select");
+  if (!sel) return;
+  const list = Array.isArray(languages) && languages.length > 0
+    ? languages
+    : [{ code: "en", nativeName: "English" }, { code: "ru", nativeName: "Русский" }];
+  sel.innerHTML = "";
+  for (const lang of list) {
+    const opt = document.createElement("option");
+    opt.value = lang.code;
+    opt.textContent = `${lang.code.toUpperCase()} · ${lang.nativeName}`;
+    sel.appendChild(opt);
+  }
+  if (!list.some((l) => l.code === currentLang)) {
+    currentLang = list[0].code;
+    localStorage.setItem("naseqmen.lang", currentLang);
+  }
+  sel.value = currentLang;
+}
+
+async function switchLanguage(langCode) {
+  setLang(langCode);
+  catalog = await Api.getCatalog(currentLang);
+  canvas.setCatalog(catalog);
+  canvas.render();
+  renderPalette();
+  HelpPanel.setCatalog(catalog);
+  setDirty(dirty);
+  updateStatusBadge();
+  debugPanel.render();
+  handleSelectionChange(canvas._getSingleSelectedNode());
+  renderInfoPanel(workspace, catalog, pluginsInfo);
 }
 
 function applyDensityMode(mode, rerenderEdges = true) {
   densityMode = ["full", "medium", "compact"].includes(mode) ? mode : "full";
   localStorage.setItem("naseqmen.density", densityMode);
   document.getElementById("app").setAttribute("data-density", densityMode);
-  document.querySelectorAll(".density-btn").forEach((b) => {
+  document.querySelectorAll(".density-btn[data-density]").forEach((b) => {
     b.classList.toggle("active", b.dataset.density === densityMode);
   });
   if (rerenderEdges && canvas) {
@@ -370,14 +428,28 @@ function applyDensityMode(mode, rerenderEdges = true) {
   }
 }
 
+function applyWireColorMode(mode, rerender = true) {
+  const valid = ["type", "level", "random"].includes(mode) ? mode : "type";
+  canvas.wireColorMode = valid;
+  localStorage.setItem("naseqmen.wireColor", valid);
+  document.querySelectorAll("[data-wire-color]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.wireColor === valid);
+  });
+  if (rerender && canvas) canvas._renderEdges();
+}
+
+function activateRightTab(tabName) {
+  document.querySelectorAll(".right-tab").forEach((b) => {
+    b.classList.toggle("active", b.dataset.tab === tabName);
+  });
+  document.querySelectorAll(".right-panel").forEach((p) => {
+    p.classList.toggle("active", p.id === `panel-${tabName}`);
+  });
+}
+
 function bindRightTabs() {
   document.querySelectorAll(".right-tab").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".right-tab").forEach((b) => b.classList.remove("active"));
-      document.querySelectorAll(".right-panel").forEach((p) => p.classList.remove("active"));
-      btn.classList.add("active");
-      document.getElementById(`panel-${btn.dataset.tab}`).classList.add("active");
-    });
+    btn.addEventListener("click", () => activateRightTab(btn.dataset.tab));
   });
 }
 
@@ -490,6 +562,7 @@ function showNodeContextMenu(clientX, clientY, node) {
   if (desc?.supportsManualTrigger) {
     items.push({ label: `▶ ${t("ctx.trigger")}`, action: () => handleTriggerNode(node.id) });
   }
+  items.push({ label: `? ${t("ctx.help")}`, action: () => HelpPanel.showNode(node.typeId, true) });
   items.push(
     {
       label: t("ctx.duplicate"),

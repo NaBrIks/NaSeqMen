@@ -14,6 +14,8 @@ internal static class Program
             ("HotkeySwitchTests", HotkeySwitchTests.GetTests()),
             ("ObsAndControlsTests", ObsAndControlsTests.GetTests()),
             ("ScriptingAndControlsTests", ScriptingAndControlsTests.GetTests()),
+            ("PluginLoaderTests", PluginLoaderTests.GetTests()),
+            ("NodeLocalizationTests", NodeLocalizationTests.GetTests()),
         };
 
         var totalSw = Stopwatch.StartNew();

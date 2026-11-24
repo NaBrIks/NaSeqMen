@@ -1,0 +1,31 @@
+{
+  "categories": {
+    "Transform": "Transform"
+  },
+  "nodes": {
+    "script.csharp": {
+      "displayName": "C# Function",
+      "description": "Executes a pre-compiled Roslyn C# script on each incoming message basket.",
+      "ports": {
+        "in": {
+          "label": "Input",
+          "description": "Incoming message basket."
+        },
+        "out": {
+          "label": "Output",
+          "description": "Transformed message basket (unless Drop() is called)."
+        },
+        "error": {
+          "label": "Error",
+          "description": "Emits runtime or compilation error details."
+        }
+      },
+      "parameters": {
+        "code": {
+          "label": "C# Script",
+          "description": "Available globals: msg, payload, text, topic, props, state, suppress, Suppress(bool), SendKeys(seq), SendMouse(act), Drop(), Log(str), Clone(payload)."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "categories": {
+    "Transform": "Преобразование"
+  },
+  "nodes": {
+    "script.csharp": {
+      "displayName": "C#-функция",
+      "description": "Выполняет предварительно скомпилированный Roslyn C#-скрипт для каждой входящей корзины сообщения.",
+      "ports": {
+        "in": {
+          "label": "Вход",
+          "description": "Входящая корзина сообщения."
+        },
+        "out": {
+          "label": "Выход",
+          "description": "Преобразованная корзина сообщения (если не вызвана функция Drop())."
+        },
+        "error": {
+          "label": "Ошибка",
+          "description": "Отправляет сведения об ошибках компиляции или выполнения."
+        }
+      },
+      "parameters": {
+        "code": {
+          "label": "C#-скрипт",
+          "description": "Доступно: msg, payload, text, topic, props, state, suppress, Suppress(bool), SendKeys(seq), SendMouse(act), Drop(), Log(str), Clone(payload)."
+        }
+      }
+    }
+  }
+}

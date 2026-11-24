@@ -1,0 +1,127 @@
+{
+  "categories": {
+    "Input": "Input",
+    "Output": "Output",
+    "Transform": "Transform",
+    "Debug": "Debug"
+  },
+  "nodes": {
+    "basic.keyboard-input": {
+      "displayName": "Keyboard Input",
+      "description": "Listens to passive physical keyboard events (Windows Raw Input) or emits test text on manual trigger.",
+      "ports": {
+        "out": {
+          "label": "Key / Text",
+          "description": "Emits the pressed character or key name inside a message basket."
+        }
+      },
+      "parameters": {
+        "captureGlobal": {
+          "label": "Capture Keyboard",
+          "description": "Observe physical Windows keyboard events passively without blocking input."
+        },
+        "printableOnly": {
+          "label": "Printable Only",
+          "description": "Emit only printable characters (letters, digits, punctuation). Uncheck to include Shift, Enter, F-keys, etc."
+        },
+        "onlyKeyDown": {
+          "label": "Key Down Only",
+          "description": "Ignore key release events."
+        },
+        "filterKey": {
+          "label": "Key Filter",
+          "description": "Optional comma-separated key names to match; leave empty to capture all keys.",
+          "placeholder": "All keys (or e.g. A, Space, F9)"
+        },
+        "testText": {
+          "label": "Manual Payload",
+          "description": "Payload emitted when clicking the manual trigger button on this node.",
+          "placeholder": "Text sent on trigger button"
+        }
+      }
+    },
+    "basic.keyboard-output": {
+      "displayName": "Keyboard Output",
+      "description": "Types incoming text into the currently focused Windows window via SendInput (Unicode). Tagged so it will not loop back into Keyboard Input.",
+      "ports": {
+        "in": {
+          "label": "Text",
+          "description": "Text payload to type into the active window."
+        },
+        "out": {
+          "label": "Sent",
+          "description": "Optional pass-through emitted after sending."
+        }
+      },
+      "parameters": {
+        "active": {
+          "label": "Active (Send)",
+          "description": "Uncheck to mute output safely without disconnecting the wire."
+        },
+        "delayMs": {
+          "label": "Delay (ms)",
+          "description": "Optional delay in milliseconds (0–5000) before typing."
+        }
+      }
+    },
+    "basic.to-upper": {
+      "displayName": "CAPS (ToUpper)",
+      "description": "Converts incoming message string payload to UPPERCASE while preserving the rest of the data basket.",
+      "ports": {
+        "in": {
+          "label": "Input",
+          "description": "Incoming message with text payload."
+        },
+        "out": {
+          "label": "UPPER",
+          "description": "Message with uppercased string payload."
+        }
+      },
+      "parameters": {
+        "trim": {
+          "label": "Trim Whitespace",
+          "description": "Remove leading and trailing whitespace before converting to uppercase."
+        },
+        "prefix": {
+          "label": "Prefix",
+          "description": "Optional text prepended before the uppercased payload.",
+          "placeholder": "Optional prefix"
+        },
+        "suffix": {
+          "label": "Suffix",
+          "description": "Optional text appended after the uppercased payload.",
+          "placeholder": "Optional suffix"
+        }
+      }
+    },
+    "basic.debug": {
+      "displayName": "Debug",
+      "description": "Inspects messages traveling along wires and streams them to the Debug panel. Also passes the message through.",
+      "ports": {
+        "in": {
+          "label": "Message",
+          "description": "Any incoming message basket."
+        },
+        "out": {
+          "label": "Pass-through",
+          "description": "Optional pass-through so Debug can be placed inline on a wire."
+        }
+      },
+      "parameters": {
+        "active": {
+          "label": "Active",
+          "description": "Enable or mute output to the Debug sidebar."
+        },
+        "label": {
+          "label": "Tag",
+          "description": "Optional label shown next to entries in the Debug panel.",
+          "placeholder": "Optional debug tag"
+        },
+        "fullBasket": {
+          "label": "Full Basket",
+          "description": "Show full message basket (payload, topic, properties, meta) or payload only."
+        }
+      }
+    }
+  }
+}

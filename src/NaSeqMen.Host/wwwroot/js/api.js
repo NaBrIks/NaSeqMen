@@ -1,7 +1,19 @@
 const Api = {
-  async getCatalog() {
-    const res = await fetch("/api/catalog");
+  async getCatalog(lang = "en") {
+    const res = await fetch(`/api/catalog?lang=${encodeURIComponent(lang || "en")}`);
     if (!res.ok) throw new Error("Failed to load catalog");
+    return res.json();
+  },
+
+  async getLanguages() {
+    const res = await fetch("/api/languages");
+    if (!res.ok) return [{ code: "en", nativeName: "English" }, { code: "ru", nativeName: "Русский" }];
+    return res.json();
+  },
+
+  async getNodeDocs(typeId, lang = "en") {
+    const res = await fetch(`/api/docs/${encodeURIComponent(typeId)}?lang=${encodeURIComponent(lang || "en")}`);
+    if (!res.ok) return null;
     return res.json();
   },
 
@@ -51,15 +63,28 @@ const Api = {
     return res.json();
   },
 
-  async getInterceptionDevices(dllPath = "") {
-    const q = dllPath ? `?dllPath=${encodeURIComponent(dllPath)}` : "";
-    const res = await fetch(`/api/interception/devices${q}`);
+  async getPlugins() {
+    const res = await fetch("/api/plugins");
+    if (!res.ok) return { pluginsDirectory: "", plugins: [] };
+    return res.json();
+  },
+
+  async invokePluginAction(pluginId, action, data = null) {
+    const res = await fetch(`/api/plugins/${encodeURIComponent(pluginId)}/${encodeURIComponent(action)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data || {}),
+    });
     if (!res.ok) return null;
     return res.json();
   },
 
+  async getInterceptionDevices(dllPath = "") {
+    return this.invokePluginAction("naseqmen.interception", "devices", { dllPath });
+  },
+
   async panicReleaseInterception() {
-    await fetch("/api/interception/panic-release", { method: "POST" });
+    await this.invokePluginAction("naseqmen.interception", "panic-release");
   },
 
   async getDebugHistory() {

@@ -47,6 +47,10 @@ class NodeCanvas {
     this.panState = null;
     this.marqueeState = null;
 
+    this.wireRouteMode = localStorage.getItem("naseqmen.wireRoute") || "smart";
+    this.wireColorMode = localStorage.getItem("naseqmen.wireColor") || "type";
+    this.wireRandomSeed = 0;
+
     this._bindEvents();
     this._applyTransform();
   }
@@ -125,6 +129,7 @@ class NodeCanvas {
 
   render() {
     this._renderNodes();
+    if (this.cb.onAfterRender) this.cb.onAfterRender();
     this._renderEdges();
   }
 
@@ -192,7 +197,18 @@ class NodeCanvas {
     titleSpan.className = "node-title";
     titleSpan.textContent = node.title || desc?.displayName || node.typeId;
 
-    header.append(collapseBtn, titleSpan);
+    const helpBtn = document.createElement("button");
+    helpBtn.type = "button";
+    helpBtn.className = "node-help-btn";
+    helpBtn.textContent = "?";
+    helpBtn.title = t("help.openDocs");
+    helpBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+    helpBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (this.cb.onOpenNodeHelp) this.cb.onOpenNodeHelp(node.typeId);
+    });
+
+    header.append(collapseBtn, titleSpan, helpBtn);
     el.appendChild(header);
 
     // Body
@@ -426,15 +442,27 @@ class NodeCanvas {
     return { x: node.x + dx, y: node.y + dy };
   }
 
+  _getNodeRects() {
+    if (!this.flow) return [];
+    const rects = [];
+    for (const n of this.flow.nodes) {
+      const card = this.nodesLayer.querySelector(`[data-node-id="${n.id}"]`);
+      const w = card ? card.offsetWidth : (n.width || 220);
+      const h = card ? card.offsetHeight : 100;
+      rects.push({
+        id: n.id,
+        left: n.x,
+        top: n.y,
+        right: n.x + w,
+        bottom: n.y + h,
+      });
+    }
+    return rects;
+  }
+
   _bezierPath(p1, p2) {
-    // Graceful under-arc for loop-back wires (e.g. Chord Matcher -> Interception Return)
-    if (p2.x < p1.x - 20) {
-      const dx = Math.abs(p1.x - p2.x);
-      const bowY = Math.max(120, Math.min(240, dx * 0.32));
-      const c1x = p1.x + Math.min(140, dx * 0.3);
-      const c2x = p2.x - Math.min(140, dx * 0.3);
-      const midY = Math.max(p1.y, p2.y) + bowY;
-      return `M ${p1.x} ${p1.y} C ${c1x} ${midY}, ${c2x} ${midY}, ${p2.x} ${p2.y}`;
+    if (typeof WireRouter !== "undefined") {
+      return WireRouter.buildPath(p1, p2, { routeMode: "classic" }).d;
     }
     const dist = Math.max(50, Math.abs(p2.x - p1.x) * 0.52);
     return `M ${p1.x} ${p1.y} C ${p1.x + dist} ${p1.y}, ${p2.x - dist} ${p2.y}, ${p2.x} ${p2.y}`;
@@ -446,6 +474,11 @@ class NodeCanvas {
     if (!this.flow) return;
 
     const ns = "http://www.w3.org/2000/svg";
+    const rects = this._getNodeRects();
+    const nodeLevels = typeof WireRouter !== "undefined"
+      ? WireRouter.computeNodeLevels(this.flow)
+      : new Map();
+    const backwardLaneCounts = new Map();
 
     for (const edge of this.flow.edges) {
       const p1 = this._getSocketWorldPos(edge.fromNodeId, edge.fromPortId, "output");
@@ -457,8 +490,25 @@ class NodeCanvas {
       const fromPort = this.catalogMap.get(fromNode?.typeId)?.outputs?.find((p) => p.id === edge.fromPortId);
       const toPort = this.catalogMap.get(toNode?.typeId)?.inputs?.find((p) => p.id === edge.toPortId);
 
-      const c1 = getPortColor(fromPort?.dataType);
-      const c2 = getPortColor(toPort?.dataType);
+      const isBackward = p2.x <= p1.x + 28;
+      let laneIndex = 0;
+      if (isBackward) {
+        const laneKey = `${edge.toNodeId}:${edge.toPortId}`;
+        laneIndex = backwardLaneCounts.get(laneKey) || 0;
+        backwardLaneCounts.set(laneKey, laneIndex + 1);
+      }
+
+      const { c1, c2 } = typeof WireRouter !== "undefined"
+        ? WireRouter.getEdgeColors(
+            edge,
+            fromPort?.dataType,
+            toPort?.dataType,
+            this.wireColorMode,
+            nodeLevels,
+            isBackward,
+            this.wireRandomSeed)
+        : { c1: getPortColor(fromPort?.dataType), c2: getPortColor(toPort?.dataType) };
+
       const compatible = isPortCompatible(fromPort?.dataType, toPort?.dataType);
 
       // Gradient definition (Blender style)
@@ -480,7 +530,17 @@ class NodeCanvas {
       grad.append(s1, s2);
       this.edgesDefs.appendChild(grad);
 
-      const d = this._bezierPath(p1, p2);
+      const routed = typeof WireRouter !== "undefined"
+        ? WireRouter.buildPath(p1, p2, {
+            routeMode: this.wireRouteMode,
+            rects,
+            fromNodeId: edge.fromNodeId,
+            toNodeId: edge.toNodeId,
+            laneIndex,
+          })
+        : { d: this._bezierPath(p1, p2), mx: (p1.x + p2.x) / 2, my: (p1.y + p2.y) / 2 };
+
+      const d = routed.d;
 
       const hit = document.createElementNS(ns, "path");
       hit.setAttribute("class", "wire-hit");
@@ -497,15 +557,15 @@ class NodeCanvas {
       const wire = document.createElementNS(ns, "path");
       wire.setAttribute("class", `wire${this.selectedEdgeId === edge.id ? " selected" : ""}${!compatible ? " invalid" : ""}`);
       wire.setAttribute("d", d);
-      wire.setAttribute("stroke", compatible ? `url(#${gradId})` : "#ef4444");
+      wire.setAttribute("stroke", compatible ? (c1 === c2 ? c1 : `url(#${gradId})`) : "#ef4444");
       wire.dataset.edgeId = edge.id;
 
       this.edgesGroup.append(hit, wire);
 
       // Warning icon on incompatible wire (Blender style)
       if (!compatible) {
-        const mx = (p1.x + p2.x) / 2;
-        const my = (p1.y + p2.y) / 2;
+        const mx = routed.mx;
+        const my = routed.my;
         const badge = document.createElementNS(ns, "g");
         badge.setAttribute("class", "wire-warning-badge");
         badge.innerHTML = `

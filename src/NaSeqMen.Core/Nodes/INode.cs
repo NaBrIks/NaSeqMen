@@ -24,11 +24,14 @@ public interface INode : IAsyncDisposable
 }
 
 /// <summary>
-/// Optional plugin entry point for external node assemblies.
+/// Optional plugin entry point for built-in and dynamically loaded node assemblies.
 /// </summary>
 public interface INodePlugin
 {
     string PluginId { get; }
     string DisplayName { get; }
     IEnumerable<Func<INode>> GetNodeFactories();
+
+    Task<object?> HandleActionAsync(string action, JsonElement? data, CancellationToken cancellationToken)
+        => Task.FromResult<object?>(null);
 }

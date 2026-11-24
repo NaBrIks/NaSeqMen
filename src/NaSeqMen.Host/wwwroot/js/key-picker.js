@@ -67,9 +67,26 @@ const KeyPicker = {
 
   MOD_CHIPS: ["LCtrl", "LShift", "LAlt", "LWin"],
   SPECIAL_CHIPS: ["Enter", "Space", "Tab", "Esc", "Backspace", "Delete", "F1", "F2", "F5", "F9", "F12"],
-  MOUSE_CHIPS: ["Left", "Right", "Middle", "X1", "X2", "WheelUp", "WheelDown"],
+  MOUSE_CHIPS: ["MouseLeft", "MouseRight", "Middle", "X1", "X2", "WheelUp", "WheelDown"],
+
+  PREFIX_SINGLE: ["LWin+", "RWin+", "LCtrl+", "RCtrl+", "LShift+", "RShift+", "LAlt+", "RAlt+"],
+  PREFIX_MULTI: [
+    "LCtrl+LShift+", "LCtrl+LAlt+", "LAlt+LShift+",
+    "LWin+LShift+", "LWin+LCtrl+", "LWin+LAlt+",
+    "LCtrl+LAlt+LShift+", "LWin+LCtrl+LShift+",
+  ],
+  MOUSE_TOKENS: ["MouseLeft", "MouseRight", "Middle", "X1", "X2", "WheelUp", "WheelDown", "WheelLeft", "WheelRight"],
+  SPECIAL_TOKENS: [
+    "Esc", "Tab", "Space", "Enter", "Backspace", "Delete", "Insert",
+    "Home", "End", "PageUp", "PageDown", "PrintScreen", "Pause", "CapsLock", "Apps",
+    "Up", "Down", "LeftArrow", "RightArrow",
+  ],
+  FKEY_TOKENS: ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"],
+  IS_MOD_RE: /^(l|r)?(ctrl|shift|alt|win)$/i,
 
   _activeStop: null,
+  _activeMenuCleanup: null,
+  _activeMenuAnchor: null,
 
   codeToCanonical(code) {
     if (!code) return null;
@@ -86,6 +103,181 @@ const KeyPicker = {
       this._activeStop();
       this._activeStop = null;
     }
+  },
+
+  closePrefixMenu() {
+    if (this._activeMenuCleanup) {
+      this._activeMenuCleanup();
+      this._activeMenuCleanup = null;
+      this._activeMenuAnchor = null;
+    }
+  },
+
+  applyQuickToken(input, token, mode, onCommit) {
+    const isPrefix = token.endsWith("+");
+    let nextVal = token;
+
+    if (mode === "key") {
+      nextVal = isPrefix ? token.slice(0, -1) : token;
+    } else {
+      const trimmed = (input.value || "").trim();
+      if (!trimmed) {
+        nextVal = token;
+      } else if (trimmed.endsWith(",")) {
+        nextVal = `${trimmed} ${token}`;
+      } else if (isPrefix) {
+        const parts = trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+        const last = parts.pop() || "";
+        const existing = last.split("+").map((s) => s.trim()).filter(Boolean);
+        const addMods = token.slice(0, -1).split("+").filter(Boolean);
+        const existingMods = existing.filter((k) => this.IS_MOD_RE.test(k));
+        const existingKeys = existing.filter((k) => !this.IS_MOD_RE.test(k));
+        const mergedMods = [...existingMods];
+        for (const m of addMods) {
+          if (!mergedMods.some((e) => e.toLowerCase() === m.toLowerCase())) {
+            mergedMods.push(m);
+          }
+        }
+        if (existingKeys.length > 0) {
+          parts.push([...mergedMods, ...existingKeys].join("+"));
+        } else {
+          parts.push(`${mergedMods.join("+")}+`);
+        }
+        nextVal = parts.join(", ");
+      } else {
+        const parts = trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+        const last = parts.pop() || "";
+        const existing = last.split("+").map((s) => s.trim()).filter(Boolean);
+        const existingMods = existing.filter((k) => this.IS_MOD_RE.test(k));
+        if (existingMods.length > 0) {
+          parts.push([...existingMods, token].join("+"));
+        } else {
+          parts.push(token);
+        }
+        nextVal = parts.join(", ");
+      }
+    }
+
+    input.value = nextVal;
+    onCommit(nextVal);
+    input.focus();
+    const len = input.value.length;
+    try {
+      input.setSelectionRange(len, len);
+    } catch {
+      // ignore if input cannot select range
+    }
+  },
+
+  openPrefixMenu(anchorBtn, input, mode, onCommit) {
+    if (this._activeMenuAnchor === anchorBtn) {
+      this.closePrefixMenu();
+      return;
+    }
+    this.stopActiveCapture();
+    this.closePrefixMenu();
+
+    const menu = document.createElement("div");
+    menu.className = "key-prefix-menu";
+    menu.addEventListener("pointerdown", (e) => e.stopPropagation());
+    menu.addEventListener("click", (e) => e.stopPropagation());
+
+    const addSection = (title, tokens, extraClass = "") => {
+      const sec = document.createElement("div");
+      sec.className = "key-prefix-sec";
+      const lbl = document.createElement("div");
+      lbl.className = "key-prefix-lbl";
+      lbl.textContent = title;
+      const grid = document.createElement("div");
+      grid.className = "key-prefix-grid";
+      for (const tok of tokens) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = `key-prefix-item${extraClass ? " " + extraClass : ""}`;
+        b.textContent = tok;
+        b.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.applyQuickToken(input, tok, mode, onCommit);
+          this.closePrefixMenu();
+        });
+        grid.appendChild(b);
+      }
+      sec.append(lbl, grid);
+      menu.appendChild(sec);
+    };
+
+    if (mode === "key") {
+      addSection("Modifiers", this.PREFIX_SINGLE.map((s) => s.slice(0, -1)), "is-mod");
+    } else {
+      addSection("Modifiers (+)", this.PREFIX_SINGLE, "is-mod");
+      addSection("Multi-Modifier (+)", this.PREFIX_MULTI, "is-mod");
+    }
+    addSection("Mouse", this.MOUSE_TOKENS, "is-mouse");
+    addSection("Special & Nav", this.SPECIAL_TOKENS);
+    addSection("Function Keys", this.FKEY_TOKENS);
+
+    document.body.appendChild(menu);
+
+    const rect = anchorBtn.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const pad = 8;
+    let left = rect.right - menuRect.width;
+    if (left < pad) left = Math.min(rect.left, window.innerWidth - menuRect.width - pad);
+    if (left < pad) left = pad;
+    let top = rect.bottom + 4;
+    if (top + menuRect.height > window.innerHeight - pad) {
+      top = Math.max(pad, rect.top - menuRect.height - 4);
+    }
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+
+    anchorBtn.classList.add("is-open");
+
+    const onOutsideDown = (e) => {
+      if (e.target === anchorBtn || anchorBtn.contains(e.target) || menu.contains(e.target)) return;
+      this.closePrefixMenu();
+    };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this.closePrefixMenu();
+      }
+    };
+    const onScrollOrResize = (e) => {
+      if (e.target && menu.contains(e.target)) return;
+      this.closePrefixMenu();
+    };
+
+    const cleanup = () => {
+      anchorBtn.classList.remove("is-open");
+      menu.remove();
+      window.removeEventListener("pointerdown", onOutsideDown, true);
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("resize", onScrollOrResize);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+    };
+
+    this._activeMenuCleanup = cleanup;
+    this._activeMenuAnchor = anchorBtn;
+    window.addEventListener("pointerdown", onOutsideDown, true);
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("resize", onScrollOrResize);
+    window.addEventListener("scroll", onScrollOrResize, true);
+  },
+
+  createPrefixButton(inp, mode, onCommit, compact = false) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `key-prefix-btn${compact ? " compact" : ""}`;
+    btn.textContent = "+▾";
+    btn.title = mode === "keyCombo"
+      ? "Insert modifier prefix (LWin+, LCtrl+, …) or special/mouse key"
+      : "Pick key or mouse button from list";
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.openPrefixMenu(btn, inp, mode, onCommit);
+    });
+    return btn;
   },
 
   /**
@@ -196,7 +388,7 @@ const KeyPicker = {
   },
 
   /**
-   * Compact inline control (for node body): [ input ] [ ⌨ ]
+   * Compact inline control (for node body & rule rows): [ input ] [ ⌨ ] [ +▾ ]
    */
   createInlineControl(value, placeholder, mode, onCommit) {
     const row = document.createElement("div");
@@ -217,15 +409,18 @@ const KeyPicker = {
     rec.textContent = "⌨";
     rec.addEventListener("click", (e) => {
       e.stopPropagation();
+      this.closePrefixMenu();
       this.startCapture(rec, inp, mode, onCommit, false);
     });
 
-    row.append(inp, rec);
+    const pfx = this.createPrefixButton(inp, mode, onCommit, true);
+
+    row.append(inp, rec, pfx);
     return row;
   },
 
   /**
-   * Rich Inspector control: [ input ] [ Rec ] [ +Step ] [ × ] + clickable builder chips
+   * Rich Inspector control: [ input ] [ Rec ] [ +▾ ] [ +Step ] [ × ] + clickable builder chips
    */
   createInspectorControl(value, placeholder, mode, onCommit) {
     const root = document.createElement("div");
@@ -247,9 +442,14 @@ const KeyPicker = {
     rec.title = mode === "keyCombo"
       ? "Press hotkey combo on keyboard (Esc to cancel)"
       : "Press key or X1/X2/Middle button (Esc to cancel)";
-    rec.addEventListener("click", () => this.startCapture(rec, inp, mode, onCommit, false));
+    rec.addEventListener("click", () => {
+      this.closePrefixMenu();
+      this.startCapture(rec, inp, mode, onCommit, false);
+    });
 
-    row.append(inp, rec);
+    const pfx = this.createPrefixButton(inp, mode, onCommit, false);
+
+    row.append(inp, rec, pfx);
 
     if (mode === "keyCombo") {
       const addStep = document.createElement("button");
@@ -442,12 +642,13 @@ const KeyPicker = {
         const stepBtn = document.createElement("button");
         stepBtn.type = "button";
         stepBtn.className = "mini-btn";
-        stepBtn.textContent = "+";
+        stepBtn.textContent = ",+";
         stepBtn.title = "Append next sequence step (e.g. LCtrl+K, LCtrl+D)";
         const toInp = toCtrl.querySelector("input");
-        const toRec = toCtrl.querySelector("button");
+        const toRec = toCtrl.querySelector(".key-rec-btn");
         stepBtn.addEventListener("click", (e) => {
           e.stopPropagation();
+          this.closePrefixMenu();
           this.startCapture(toRec, toInp, "keyCombo", (val) => {
             rule.to = val;
             commit();
