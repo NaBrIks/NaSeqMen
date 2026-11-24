@@ -1,85 +1,127 @@
-# NaSeqMen
+<p align="center">
+  <img src="docs/images/logo.svg" alt="NaSeqMen" width="88" height="88" />
+</p>
 
-Переход к следующей архитектуре описан в [плане самоописанного графа](docs/plans/self-describing-graph.md). Исходная версия сохранена тегом `v0.0.1` (`17a766b`). План предназначен следующему исполнителю; описание альфы ниже отражает текущую реализацию.
+<h1 align="center">NaSeqMen</h1>
 
-NaSeqMen — универсальный продукт. Устройства, интерфейсы, кнопки, сочетания и действия выбираются в конфигурации. Код, прототипы и сборки применяют один механизм ко всем поддерживаемым устройствам. См. [требования](REQUIREMENTS.md).
+<p align="center">
+  <strong>Visual node-flow router for hardware input, hotkeys, OBS Studio, windows, and live C# scripts.</strong>
+</p>
 
-> Уточнение владельца 2026-11-15: текущее состояние удерживаемых клавиш, включая Shift/Ctrl/Alt/Win, разрешено для условий и обработки. Это узкое исключение из прежнего запрета состояний, без истории и дискового хранения. Контракт и текущая граница реализации: [состояние ввода](docs/input-state.md).
+<p align="center">
+  English | <a href="README.ru.md">Русский</a>
+</p>
 
-Самостоятельный коммутатор событий, значений и действий. Рабочее название владельца. Отдельный исполнитель, отдельный редактор, подключаемые модули и C#-сценарии. NaSDock — одна из интеграций, OBS — первый внешний протокол для экспериментов.
+---
 
-**Текущий этап: первая альфа, 0.1.0-alpha; новый HTML-редактор рядом с сохранённым WPF.** Владелец 2026-11-15 расширил первоначальную задачу до реализации, затем прямо выбрал HTML и .NET 11. Подтверждённые результаты и ограничения — в [проверке](docs/verification.md) и [описании HTML-редактора](docs/web-editor.md). Наличие проекта или примера не означает проверку физического устройства.
+**Connect keyboards, mice, macro pads, OBS Studio, desktop windows, and C# scripts like patch cables — and watch every signal travel live.**
 
-## Запуск
+NaSeqMen combines the tactile visual canvas of a Blender node editor with the reactive message routing of Node-RED, running natively on **.NET 11** right from your Windows system tray. No proprietary hardware lock-in, no giant config files: pick any connected device, wire its events to switches, filters, virtual sliders, or scripts, and hit **Deploy**.
 
-Основной запуск — [Start-NaSeqMen.cmd](Start-NaSeqMen.cmd): отдельное окно WebView2 с HTML-интерфейсом на .NET 11. Оформление адаптировано из UI.TechnicalShell: закреплённая шапка, левое дерево, Cream/Nano по умолчанию, единое меню оформления и RU/EN. Исполнитель работает независимо от окна.
+![NaSeqMen visual flow editor showing Interception Hub, Input Probe, Hotkey Switch, and live pastel signal routing](docs/images/preview.jpg)
 
-Браузерный вариант того же HTML открывается через [Start-NaSeqMen-Web.cmd](Start-NaSeqMen-Web.cmd) на [локальной странице NaSeqMen](http://127.0.0.1:17964). Сохранённый WPF-редактор доступен через [Start-NaSeqMen-Wpf.cmd](Start-NaSeqMen-Wpf.cmd). Все варианты используют один исполнитель и одну конфигурацию. Для закрытия исполнителя использовать его значок в трее. Автозапуск не установлен.
+---
 
-Приложения находятся в `artifacts/alpha/executor`, `artifacts/alpha/desktop`, `artifacts/alpha/editor` и `artifacts/alpha/web`. Проекты используют .NET 11; установлен SDK 11.0.100 и runtime 11.0.0, включая ASP.NET Core и Windows Desktop. Настройки и API-token находятся в игнорируемом `local/`; браузер не получает API-token.
+## Why NaSeqMen?
 
-По умолчанию включён **пробный режим**. В редакторе нажать «Подать событие…», оставить `demo`, `down`, `number`, `1`. В диагностике будут видны условие, умножение на 2 и подавленное сочетание Ctrl+C; реальное нажатие не отправляется. Для C# использовать имя `script` и текстовое значение.
+- **Per-device hardware control:** Intercept a second keyboard, barcode scanner, or specific mouse (`X1`/`X2` side buttons, chords like `LWin+D → LCtrl+X`, multi-step sequences like `LCtrl+K, LCtrl+D`) without touching your primary keyboard.
+- **Zero-guesswork Input Probe:** Arm a safe capture trap with live key/button readout so you see *exactly* what each button sends before mapping it — with instant **`Esc`** disarm, inactivity auto-off, and a hard safety timeout.
+- **Interactive studio widgets right on the canvas:** Toggle buttons, faders, live stereo OBS **VU meters**, and hardware device checklists sit directly inside your flow graph.
+- **Real C# whenever you need custom logic:** Drop a **C# Function** node (Roslyn-compiled on deploy) to inspect, transform, suppress, or synthesize any event in a few lines of C#.
+- **Self-documenting & multilingual:** Every node has a `?` button opening rich Markdown documentation (purpose, scenarios, ports, setup tips) in your language — plus localized parameters and instant language switching.
+- **True plugin architecture:** Add new integrations by dropping a folder into `plugins/` — the host discovers and loads them dynamically with zero recompilation.
 
-Основной язык интерфейса — английский; EN/RU переключает языковые ресурсы и сохраняет выбор. Встроенные сообщения исполнителя передаются кодами и параметрами, пользовательские имена и сценарии не переводятся. Дерево Settings открывает страницы; форма редактирования вызывается кнопкой Edit на странице соединения.
+---
 
-Для изучения мыши открыть Devices and events / «Устройства и события» и включить обнаружение в строках её интерфейсов. Обнаруженные события сгруппированы по точному источнику. Индикатор открывает подробности и настройку имени, а «+» создаёт узел события с подключённым источником. Для составного нажатия выбрать «Добавить цепочку…» на клавиатурном интерфейсе и записать шаги либо использовать шаблон Win+E. Подробности в [настройке последовательностей](docs/event-sequences.md).
+## Built-in Modules & Plugins
 
-Журнал HTML-редактора следует за новыми записями, пока просмотр находится в конце. При прокрутке вверх он сохраняет место чтения; возврат к последней записи возобновляет автопрокрутку.
+| Module / Plugin | Kind | Nodes | Highlights |
+| --- | --- | --- | --- |
+| `NaSeqMen.Nodes.Basic` | Core | `Keyboard Input`, `CAPS (ToUpper)`, `Keyboard Output`, `Debug` | Global Raw Input listener (EN/RU layouts), Unicode `SendInput`, live Debug stream |
+| `NaSeqMen.Nodes.Controls` | Core | `Virtual Button`, `Virtual Slider`, `VU Meter` | Momentary/toggle buttons, two-way feedback sliders, stereo peak-hold VU meters |
+| `NaSeqMen.Nodes.Scripting` | Core | `C# Function` | Pre-compiled Roslyn C# scripts with per-node `state`, `Suppress()`, `SendKeys()`, `SendMouse()` |
+| `NaSeqMen.Nodes.Interception` | Plugin | `Interception Hub`, `Interception Device`, `Hotkey Switch`, `Input Probe`, `Stroke Action`, `Chord Matcher` | Hardware-level per-device loop-back hooks, friendly USB brand/model names, unified modifier buffering & replay, panic release (`Ctrl+Alt+Pause`) |
+| `NaSeqMen.Nodes.Obs` | Plugin | `OBS Studio` | Native OBS WebSocket v5 client (SHA-256 auth, scenes, volume/mute, recording/streaming, real-time `InputVolumeMeters`) |
+| `NaSeqMen.Nodes.Windows` | Plugin | `Window Filter`, `Focus Window`, `Window PostText` | Foreground window routing, window activation, background `WM_CHAR` posting |
 
-В этой рабочей копии настроено соединение с отдельным переносимым OBS в `C:\OBS` и добавлены цепочки `obs-info → GetVersion` и `ответ OBS → текст диагностики`. В пробном режиме запрос только показывается. Все реальные проверки OBS были запросами чтения, запись/трансляция не запускались. Пароль не включён в примеры и документацию.
+---
 
-Чтобы заново добавить это соединение из локального файла эксперимента: `powershell -File scripts/connect-experimental-obs.ps1`. При недоступном OBS исполнитель продолжает запускаться. После запуска OBS повторно сохранить его соединение в редакторе. Автоматическое переподключение OBS ещё не реализовано.
+## Quick Start
 
-Для пересборки сначала завершить запущенные приложения, затем выполнить `powershell -File scripts/build.ps1`. Решение для IDE — [NaSeqMen.slnx](NaSeqMen.slnx).
+### Requirements
 
-HTML-редактор можно пересобрать отдельно: завершить только его веб-процесс и выполнить `powershell -File scripts/start-web.ps1 -Rebuild`. Подробности запуска и границы API — в [docs/web-editor.md](docs/web-editor.md).
+- **Windows 10 / 11 (x64)**
+- **.NET 11 SDK** (`dotnet --version`)
+- *(Optional)* **Interception driver** (`interception.dll`) if you want hardware-level per-device interception — NaSeqMen runs cleanly without it and auto-discovers it at runtime when installed.
 
-## Документы
+### Build & Run
 
-- [Требования владельца](REQUIREMENTS.md)
-- [Единая архитектура](docs/architecture.md)
-- [Исполнитель и C#](docs/runtime-and-scripting.md)
-- [Редактор, схема и отладка](docs/editor.md)
-- [Новый HTML-редактор и локальный веб-сервер](docs/web-editor.md)
-- [Окно WebView2 и владение локальным сервером](docs/webview.md)
-- [Интеграция UI.TechnicalShell](docs/technical-shell.md)
-- [Языковые ресурсы и сообщения](docs/localization.md)
-- [Принятое решение о состоянии удерживаемых клавиш](docs/input-state.md)
-- [Предложение источников, событий и последовательностей](docs/input-events-proposal.md)
-- [Модули и распознавание устройств](docs/modules-and-input.md)
-- [Конкретный контракт альфы](docs/alpha-contract.md)
-- [План реализации](docs/plans/implementation.md)
-- [Проверки и ограничения альфы](docs/verification.md)
-- [Передача работы и видимые чаты](docs/plans/handoff.md)
-- [Полный UI-стандарт](docs/ui-principles.md)
+```powershell
+git clone https://github.com/NaBrIks/NaSeqMen.git
+cd NaSeqMen
 
-## Граница продукта
+# Build the solution (core + host + dynamically staged plugins)
+dotnet build src\NaSeqMen.slnx
 
-В ядре нет общего хранилища последних значений, истории, восстановления, replay или автоматического снимка при подключении. Модуль ввода передаёт снимок удерживаемых Shift, Ctrl, Alt и Win с каждым физическим событием. Условия и C# получают одинаковый снимок. См. [input-state.md](docs/input-state.md). На диск сохраняются настройки и сценарии. Исполнитель работает независимо от редактора.
+# Launch the tray host and open the editor at http://127.0.0.1:17980
+.\Start-NaSeqMen-V2.cmd
+```
 
-По прямому решению владельца текущая целевая платформа — .NET 11, новый интерфейс — HTML/CSS/JavaScript. WPF сохранён отдельным проектом. Локальный ASP.NET Core сервер HTML-редактора слушает `http://127.0.0.1:17964` и передаёт разрешённые API-запросы исполнителю `http://127.0.0.1:17963`, добавляя token только на сервере. Наблюдение мыши/клавиатуры через Raw Input не подавляет исходный ввод и не заменяет действующий AHK.
+Or run the host directly from the terminal:
 
-## Структура
+```powershell
+dotnet run --project src\NaSeqMen.Host\NaSeqMen.Host.csproj
+```
+
+Then open **http://127.0.0.1:17980** in any modern browser. Use the tray icon (Neon N-Curve) to open the editor, pause/resume the engine, or exit cleanly.
+
+---
+
+## Technical Details
+
+### Architecture
 
 ```text
 src/
-  NaSeqMen.Contracts/   общий контракт модулей и API
-  NaSeqMen.Runtime/     маршрутизация и проверка схем
-  NaSeqMen.Scripting/   выполнение пользовательского C#
-  NaSeqMen.Executor/    самостоятельный процесс и API
-  NaSeqMen.Editor/      отдельное WPF приложение
-  NaSeqMen.Editor.Web/  HTML/CSS/JavaScript и отдельный локальный ASP.NET Core сервер
-  NaSeqMen.Desktop/     окно WebView2; тот же HTML и встроенный локальный сервер редактора
-modules/
-  NaSeqMen.Input.Windows/    пассивный ввод и обнаружение устройств
-  NaSeqMen.Desktop.Windows/  клавиатурные действия и условия Windows
-  NaSeqMen.Obs/              OBS WebSocket
-scripts/                    сборка, запуск, проверка
-tests/                      проверки поведения
-examples/                   нейтральные примеры конфигураций
-docs/                       архитектура, планы, результаты
-local/                      личные настройки и свидетельства; игнорируется Git
-artifacts/                  собранная альфа; игнорируется Git
+  NaSeqMen.Core/                Pure SDK contracts (FlowMessage, INode, INodePlugin, descriptors)
+  NaSeqMen.Engine/              FlowEngine, NodeRegistry, PluginLoader (AssemblyLoadContext), NodeLocalizationService
+  NaSeqMen.Host/                ASP.NET Core loopback API + SSE + Windows Tray host + pure HTML/CSS/JS editor
+  NaSeqMen.Nodes.Basic/         Built-in starter I/O & Debug nodes
+  NaSeqMen.Nodes.Controls/      Built-in interactive UI widgets & meters
+  NaSeqMen.Nodes.Scripting/     Built-in Roslyn C# Function node
+  NaSeqMen.Nodes.Interception/  External dynamic plugin -> plugins/NaSeqMen.Nodes.Interception/
+  NaSeqMen.Nodes.Obs/           External dynamic plugin -> plugins/NaSeqMen.Nodes.Obs/
+  NaSeqMen.Nodes.Windows/       External dynamic plugin -> plugins/NaSeqMen.Nodes.Windows/
+  NaSeqMen.Tests/               Automated test runner (26 end-to-end & unit tests)
 ```
 
-Модуль NaSDock предусмотрен архитектурой, перенос существующей прошивки и её USB-транспорта не входит в первую настольную проверку. Исходники AutoHotkey и AutoHotInterception не используются. Код собственный, MIT; сторонние зависимости сохраняют свои лицензии. Коммитов и публикации без запроса нет.
+- **Data Basket Paradigm:** Every event travels as a `FlowMessage` basket (`Payload`, `Topic`, `Properties`, `OriginNodeId`). Loop-back flows (e.g. `Interception Hub → Hotkey Switch / Input Probe → Return / Action`) correlate decisions by `correlationId` and merge parallel branches safely before releasing or suppressing a hardware stroke.
+- **Plugin Isolation:** `NaSeqMen.Host` has zero compile-time or runtime project references to external plugins. Plugins are built with `EnableDynamicLoading=true`, staged to `plugins/<PluginName>/`, and loaded into isolated `AssemblyLoadContext` instances sharing `NaSeqMen.Core`.
+- **Hybrid N-Language Localization & Docs:**
+  - Every module/plugin keeps its own `locales/<lang>/strings.json` and `locales/<lang>/<typeId>.md`.
+  - Lookup priority: `locales-override/<lang>/` → external `locales/<lang>/` next to the DLL → embedded assembly resources (for single-DLL third-party plugins) → `en` fallback → auto-generated Markdown from C# metadata.
+  - Drop a new language folder (e.g. `de/`, `ja/`) or edit any `.md` file and click `↻` in the **Help** tab — zero rebuild or restart required.
+
+### Environment Variables
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `NASEQMEN_PORT` | `17980` | Local HTTP/SSE loopback port |
+| `NASEQMEN_PLUGINS_DIR` | `<AppDir>\plugins` | External plugin discovery directory |
+| `NASEQMEN_INTERCEPTION_DLL` | Auto-detect | Explicit path to `interception.dll` |
+
+### Automated Tests
+
+```powershell
+dotnet run --project src\NaSeqMen.Tests\NaSeqMen.Tests.csproj
+```
+
+Covers hardware HWID resolution across USB slot changes, loop-back chord suppression & atomic modifier replay, `Input Probe` failsafes, mock OBS WebSocket v5 auth & VU meters, Roslyn C# script isolation, dynamic `PluginLoader` discovery, and hybrid EN/RU + third-party localization/docs fallback.
+
+---
+
+## Safety & Licenses
+
+- **Emergency hardware release:** Pressing **`Ctrl + Alt + Pause`** (or clicking **Release** on the Interception node) immediately clears all Interception driver filters so you can never lock yourself out of keyboard or mouse input.
+- **No bundled drivers or autostart:** NaSeqMen never bundles `interception.dll`, never installs kernel drivers, and never registers Windows autostart.
+- **License:** Original source code is licensed under **MIT**. USB vendor lookup data is derived from `usb.ids` (3-Clause BSD). Third-party dependencies keep their respective licenses.

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="24" y1="16" x2="232" y2="240" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1e232d"/>
+      <stop offset="100%" stop-color="#141820"/>
+    </linearGradient>
+
+    <linearGradient id="leftRail" x1="80" y1="68" x2="80" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="100%" stop-color="#7dd3fc"/>
+    </linearGradient>
+
+    <linearGradient id="diagCurve" x1="80" y1="68" x2="176" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="48%" stop-color="#c4b5fd"/>
+      <stop offset="100%" stop-color="#fdba74"/>
+    </linearGradient>
+
+    <linearGradient id="rightRail" x1="176" y1="68" x2="176" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="100%" stop-color="#fdba74"/>
+    </linearGradient>
+
+    <pattern id="dotGrid" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="8" cy="8" r="1.1" fill="#ffffff" fill-opacity="0.06"/>
+    </pattern>
+
+    <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Squircle badge -->
+  <rect x="12" y="12" width="232" height="232" rx="54" fill="url(#bgGrad)" stroke="#333c4d" stroke-width="5"/>
+  <rect x="20" y="20" width="216" height="216" rx="46" fill="url(#dotGrid)"/>
+
+  <!-- Subtle dark backplate under N for crisp separation -->
+  <g stroke="#0e1117" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" opacity="0.85">
+    <path d="M 80 186 L 80 70 C 122 70, 134 186, 176 186 L 176 70"/>
+  </g>
+
+  <!-- Glowing Neon N-Curve -->
+  <g filter="url(#neonGlow)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="80" y1="186" x2="80" y2="70" stroke="url(#leftRail)"/>
+    <path d="M 80 70 C 124 70, 132 186, 176 186" stroke="url(#diagCurve)"/>
+    <line x1="176" y1="186" x2="176" y2="70" stroke="url(#rightRail)"/>
+  </g>
+
+  <!-- Node Sockets (hollow rings) -->
+  <g stroke-width="9">
+    <circle cx="80"  cy="70"  r="16" fill="#161a22" stroke="#6ee7b7"/>
+    <circle cx="80"  cy="186" r="16" fill="#161a22" stroke="#7dd3fc"/>
+    <circle cx="176" cy="186" r="16" fill="#161a22" stroke="#fdba74"/>
+    <circle cx="176" cy="70"  r="16" fill="#161a22" stroke="#c4b5fd"/>
+  </g>
+</svg>

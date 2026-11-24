@@ -3,6 +3,7 @@
     <TargetFramework>net11.0-windows</TargetFramework>
     <OutputType>WinExe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <RootNamespace>NaSeqMen.Host</RootNamespace>
     <AssemblyName>NaSeqMen.Host</AssemblyName>
   </PropertyGroup>

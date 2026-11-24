@@ -42,8 +42,8 @@ internal sealed class TrayHost : IDisposable
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
-        _activeIcon = CreateTrayIcon(Color.FromArgb(37, 99, 235), Color.FromArgb(52, 211, 153));
-        _pausedIcon = CreateTrayIcon(Color.FromArgb(120, 113, 108), Color.FromArgb(251, 191, 36));
+        _activeIcon = CreateNeonNTrayIcon(paused: false);
+        _pausedIcon = CreateNeonNTrayIcon(paused: true);
 
         var menu = new ContextMenuStrip();
 
@@ -122,26 +122,62 @@ internal sealed class TrayHost : IDisposable
         }
     }
 
-    private static Icon CreateTrayIcon(Color bgColor, Color dotColor)
+    private static Icon CreateNeonNTrayIcon(bool paused)
     {
-        using var bmp = new Bitmap(32, 32);
+        using var bmp = new Bitmap(32, 32, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(bmp))
         {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.SmoothingMode = SmoothingMode.HighQuality;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
             g.Clear(Color.Transparent);
 
-            using var bgBrush = new SolidBrush(bgColor);
-            g.FillEllipse(bgBrush, 2, 2, 28, 28);
+            using var rectPath = CreateRoundedRect(1f, 1f, 30f, 30f, 7f);
+            using var bgBrush = new LinearGradientBrush(
+                new PointF(0, 0),
+                new PointF(32, 32),
+                Color.FromArgb(255, 30, 35, 45),
+                Color.FromArgb(255, 18, 22, 30));
+            g.FillPath(bgBrush, rectPath);
 
-            using var pen = new Pen(Color.White, 2.2f);
-            g.DrawLine(pen, 9, 16, 21, 10);
-            g.DrawLine(pen, 9, 16, 21, 22);
+            var borderColor = paused
+                ? Color.FromArgb(255, 217, 119, 6)
+                : Color.FromArgb(255, 62, 74, 96);
+            using var borderPen = new Pen(borderColor, 1.4f);
+            g.DrawPath(borderPen, rectPath);
 
-            using var whiteBrush = new SolidBrush(Color.White);
-            using var accentBrush = new SolidBrush(dotColor);
-            g.FillEllipse(whiteBrush, 6, 13, 6, 6);
-            g.FillEllipse(accentBrush, 19, 7, 6, 6);
-            g.FillEllipse(accentBrush, 19, 19, 6, 6);
+            var mint = paused ? Color.FromArgb(255, 251, 191, 36) : Color.FromArgb(255, 110, 231, 183);
+            var sky = paused ? Color.FromArgb(255, 245, 158, 11) : Color.FromArgb(255, 125, 211, 252);
+            var lav = paused ? Color.FromArgb(255, 253, 224, 71) : Color.FromArgb(255, 196, 181, 253);
+            var peach = paused ? Color.FromArgb(255, 217, 119, 6) : Color.FromArgb(255, 253, 186, 116);
+
+            const float x1 = 9.5f, x2 = 22.5f, y1 = 8.5f, y2 = 23.5f, sw = 2.8f;
+
+            using (var bLeft = new LinearGradientBrush(new PointF(x1, y1), new PointF(x1, y2), mint, sky))
+            using (var pLeft = new Pen(bLeft, sw) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                g.DrawLine(pLeft, x1, y2, x1, y1);
+
+            using (var bDiag = new LinearGradientBrush(new PointF(x1, y1), new PointF(x2, y2), mint, peach))
+            {
+                bDiag.InterpolationColors = new ColorBlend(3)
+                {
+                    Colors = [mint, lav, peach],
+                    Positions = [0f, 0.5f, 1f],
+                };
+                using var pDiag = new Pen(bDiag, sw) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+                g.DrawBezier(pDiag, x1, y1, 15.5f, y1, 16.5f, y2, x2, y2);
+            }
+
+            using (var bRight = new LinearGradientBrush(new PointF(x2, y1), new PointF(x2, y2), lav, peach))
+            using (var pRight = new Pen(bRight, sw) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                g.DrawLine(pRight, x2, y2, x2, y1);
+
+            using var coreBrush = new SolidBrush(Color.FromArgb(255, 22, 26, 34));
+            foreach (var (cx, cy, col) in new[] { (x1, y1, mint), (x1, y2, sky), (x2, y2, peach), (x2, y1, lav) })
+            {
+                g.FillEllipse(coreBrush, cx - 2.6f, cy - 2.6f, 5.2f, 5.2f);
+                using var sp = new Pen(col, 1.6f);
+                g.DrawEllipse(sp, cx - 2.6f, cy - 2.6f, 5.2f, 5.2f);
+            }
         }
 
         var hIcon = bmp.GetHicon();
@@ -149,6 +185,18 @@ internal sealed class TrayHost : IDisposable
         var cloned = (Icon)temp.Clone();
         DestroyIcon(hIcon);
         return cloned;
+    }
+
+    private static GraphicsPath CreateRoundedRect(float x, float y, float w, float h, float r)
+    {
+        var p = new GraphicsPath();
+        var d = r * 2f;
+        p.AddArc(x, y, d, d, 180, 90);
+        p.AddArc(x + w - d, y, d, d, 270, 90);
+        p.AddArc(x + w - d, y + h - d, d, d, 0, 90);
+        p.AddArc(x, y + h - d, d, d, 90, 90);
+        p.CloseFigure();
+        return p;
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
