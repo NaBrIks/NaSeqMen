@@ -77,6 +77,34 @@ Then open **http://127.0.0.1:17980** in any modern browser. Use the tray icon (N
 
 ---
 
+## Optional: Installing the Interception Driver (Per-Device Hardware Hooks)
+
+All basic input, virtual controls, OBS Studio, Windows filters, and C# scripts work out of the box without any driver. If you want **hardware-level per-device interception and suppression** (e.g. remapping a second keyboard or side mouse buttons `X1`/`X2` via `Interception Hub`), install the official third-party [oblitum/Interception](https://github.com/oblitum/Interception) driver:
+
+1. **Download** the latest `Interception.zip` archive from the official releases page:
+   `https://github.com/oblitum/Interception/releases`
+2. **Extract** it to a clean folder, for example `C:\Interception`.
+3. **Install the driver** from an **Administrator** Command Prompt (`cmd.exe` → *Run as administrator*):
+   ```cmd
+   cd "C:\Interception\command line installer"
+   install-interception.exe /install
+   ```
+4. **Reboot Windows** (required once for the kernel filter driver to activate).
+5. **Make `interception.dll` (64-bit `library\x64\interception.dll`) available to NaSeqMen** — pick **any one** option:
+   - **Drop into the plugin folder (recommended):** copy `library\x64\interception.dll` into `plugins\NaSeqMen.Nodes.Interception\interception.dll` (next to `NaSeqMen.Nodes.Interception.dll`), or next to `NaSeqMen.Host.exe`.
+   - **Standard folder auto-detect:** leave the archive extracted at `C:\Interception\library\x64\interception.dll` (or `%ProgramFiles%\Interception\library\x64\interception.dll`).
+   - **Environment variable:** set `NASEQMEN_INTERCEPTION_DLL=C:\path\to\interception.dll`.
+   - **Per-node setting:** paste the full path into **DLL Path** in the `Interception Hub` Inspector.
+6. **To uninstall later** (Administrator Command Prompt + reboot):
+   ```cmd
+   cd "C:\Interception\command line installer"
+   install-interception.exe /uninstall
+   ```
+
+> **Note:** `oblitum/Interception` is an independent external driver (free for non-commercial use under LGPL-3.0; commercial use requires a commercial license from its author). NaSeqMen never bundles or installs it automatically. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+---
+
 ## Technical Details
 
 ### Architecture
@@ -124,4 +152,4 @@ Covers hardware HWID resolution across USB slot changes, loop-back chord suppres
 
 - **Emergency hardware release:** Pressing **`Ctrl + Alt + Pause`** (or clicking **Release** on the Interception node) immediately clears all Interception driver filters so you can never lock yourself out of keyboard or mouse input.
 - **No bundled drivers or autostart:** NaSeqMen never bundles `interception.dll`, never installs kernel drivers, and never registers Windows autostart.
-- **License:** Original source code is licensed under **MIT**. USB vendor lookup data is derived from `usb.ids` (3-Clause BSD). Third-party dependencies keep their respective licenses.
+- **License:** Original source code is licensed under **[MIT](LICENSE)**. All bundled/NuGet dependencies (`.NET 11`, Roslyn `Microsoft.CodeAnalysis.CSharp.Scripting`) are MIT-licensed; the USB vendor lookup table is used under **3-Clause BSD** (`usb.ids`). Full attribution and optional Interception license details are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

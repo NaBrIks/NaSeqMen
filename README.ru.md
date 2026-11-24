@@ -77,6 +77,34 @@ dotnet run --project src\NaSeqMen.Host\NaSeqMen.Host.csproj
 
 ---
 
+## Опционально: установка драйвера Interception (перехват по устройствам)
+
+Базовый ввод, виртуальные контролы, OBS Studio, фильтры окон и C#-скрипты работают сразу «из коробки» без каких-либо драйверов. Если нужен **аппаратный перехват и подавление по конкретному устройству** (например, переназначение отдельной второй клавиатуры или боковых кнопок мыши `X1`/`X2` через `Interception Hub`), установите официальный внешний драйвер [oblitum/Interception](https://github.com/oblitum/Interception):
+
+1. **Скачайте** свежий архив `Interception.zip` со страницы официальных релизов:
+   `https://github.com/oblitum/Interception/releases`
+2. **Распакуйте** его, например, в `C:\Interception`.
+3. **Установите драйвер** через Командную строку **от имени администратора** (`cmd.exe` → *Запуск от имени администратора*):
+   ```cmd
+   cd "C:\Interception\command line installer"
+   install-interception.exe /install
+   ```
+4. **Перезагрузите Windows** (нужно один раз, чтобы драйвер фильтра загрузился).
+5. **Укажите NaSeqMen, где лежит 64-битная `library\x64\interception.dll`** — достаточно **любого одного** способа:
+   - **Положить в папку плагина (проще всего):** скопируйте `library\x64\interception.dll` в `plugins\NaSeqMen.Nodes.Interception\interception.dll` (рядом с `NaSeqMen.Nodes.Interception.dll`) либо рядом с `NaSeqMen.Host.exe`.
+   - **Автопоиск по стандартному пути:** просто оставьте распакованный архив в `C:\Interception\library\x64\interception.dll` (или `%ProgramFiles%\Interception\library\x64\interception.dll`).
+   - **Переменная среды:** задайте `NASEQMEN_INTERCEPTION_DLL=C:\путь\к\interception.dll`.
+   - **Прямо в редакторе:** укажите путь в параметре **Путь к DLL (`DLL Path`)** в Инспекторе узла `Interception Hub`.
+6. **Удаление драйвера** (если когда-нибудь понадобится — от имени администратора + перезагрузка):
+   ```cmd
+   cd "C:\Interception\command line installer"
+   install-interception.exe /uninstall
+   ```
+
+> **Лицензия драйвера:** `oblitum/Interception` — внешний драйвер (бесплатен для некоммерческого использования по LGPL-3.0; коммерческое использование требует отдельной коммерческой лицензии у автора). NaSeqMen не включает его в поставку и не ставит автоматически. Подробности — в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+---
+
 ## Технические нюансы
 
 ### Структура решения
@@ -124,4 +152,4 @@ dotnet run --project src\NaSeqMen.Tests\NaSeqMen.Tests.csproj
 
 - **Аварийное освобождение ввода:** комбинация **`Ctrl + Alt + Pause`** (или кнопка **Release** на узле Interception) мгновенно снимает все фильтры драйвера, исключая риск «залипания» или блокировки клавиатуры и мыши.
 - **Никаких встроенных драйверов и автозапуска:** NaSeqMen не поставляет `interception.dll`, не устанавливает системные драйверы и не прописывается в автозапуск Windows.
-- **Лицензия:** собственный код распространяется под лицензией **MIT**. Таблица производителей USB основана на `usb.ids` (3-Clause BSD). Сторонние зависимости сохраняют свои лицензии.
+- **Лицензия:** собственный код распространяется по **[MIT](LICENSE)**. Все подключённые библиотеки (`.NET 11`, Roslyn `Microsoft.CodeAnalysis.CSharp.Scripting`) также под MIT; таблица производителей USB используется по **3-Clause BSD** (`usb.ids`). Полный разбор совместимости лицензий и внешних компонентов — в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

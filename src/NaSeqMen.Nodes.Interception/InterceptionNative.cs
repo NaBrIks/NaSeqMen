@@ -121,7 +121,6 @@ public interface IInterceptionBackend : IDisposable
 public sealed unsafe class NativeInterceptionBackend : IInterceptionBackend
 {
     private const string EnvVarName = "NASEQMEN_INTERCEPTION_DLL";
-    private const string CommonFallbackDllPath = @"C:\0AHK\Interception\library\x64\interception.dll";
 
     private nint _libraryHandle;
     private delegate* unmanaged[Cdecl]<nint> _createContext;
@@ -188,12 +187,12 @@ public sealed unsafe class NativeInterceptionBackend : IInterceptionBackend
 
         LastError = errors.Count > 0
             ? string.Join(" ", errors)
-            : "interception.dll was not found. Install the Interception driver or set NASEQMEN_INTERCEPTION_DLL / dllPath.";
+            : "interception.dll not found. Place x64 interception.dll into plugins\\NaSeqMen.Nodes.Interception\\, install to C:\\Interception, or set NASEQMEN_INTERCEPTION_DLL / DLL Path.";
     }
 
     private static IReadOnlyList<string> BuildCandidatePaths(string? userDllPath)
     {
-        var list = new List<string>(5);
+        var list = new List<string>(8);
 
         // 1. Optional user-provided dllPath parameter
         if (!string.IsNullOrWhiteSpace(userDllPath))
@@ -204,14 +203,25 @@ public sealed unsafe class NativeInterceptionBackend : IInterceptionBackend
         if (!string.IsNullOrWhiteSpace(envPath))
             list.Add(envPath);
 
-        // 3. App base directory (interception.dll)
+        // 3. Plugin directory (plugins/NaSeqMen.Nodes.Interception/interception.dll or x64/interception.dll)
+        var pluginDir = Path.GetDirectoryName(typeof(NativeInterceptionBackend).Assembly.Location);
+        if (!string.IsNullOrWhiteSpace(pluginDir))
+        {
+            list.Add(Path.Combine(pluginDir, "interception.dll"));
+            list.Add(Path.Combine(pluginDir, "x64", "interception.dll"));
+        }
+
+        // 4. Host app base directory (interception.dll)
         list.Add(Path.Combine(AppContext.BaseDirectory, "interception.dll"));
 
-        // 4. Standard OS search (PATH / System32)
+        // 5. Standard OS search (PATH / System32)
         list.Add("interception.dll");
 
-        // 5. Common user install fallback path (checked dynamically at runtime only)
-        list.Add(CommonFallbackDllPath);
+        // 6. Standard unpacked archive paths
+        list.Add(@"C:\Interception\library\x64\interception.dll");
+        var progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        if (!string.IsNullOrWhiteSpace(progFiles))
+            list.Add(Path.Combine(progFiles, "Interception", "library", "x64", "interception.dll"));
 
         return list;
     }

@@ -17,3 +17,4 @@ TestResults/
 *.pem
 *.pfx
 *.p12
+interception.dll

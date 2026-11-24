@@ -332,7 +332,7 @@ internal static class HotkeySwitchTests
     {
         var backend = new MockInterceptionBackend();
         backend.SetHardwareId(1, "HID\\VID_046D&PID_C52B&MI_00"); // Logitech (bound to kb1)
-        backend.SetHardwareId(2, "HID\\VID_09DA&PID_9090&MI_00"); // A4Tech (unconfigured, seen via All!)
+        backend.SetHardwareId(2, "HID\\VID_1532&PID_0001&MI_00"); // Razer (unconfigured, seen via All!)
         InterceptionDriverService.Instance.SetBackendForTesting(backend);
         try
         {
@@ -383,7 +383,7 @@ internal static class HotkeySwitchTests
             var sent1 = backend.SnapshotSent().Select(DescribeKeyStroke).ToArray();
             Assert.Equal("LCtrl:down,X:down,X:up,LCtrl:up", string.Join(",", sent1), "Hotkey Switch remap must win cleanly while passive Probe monitors");
 
-            // 2. Unconfigured slot 2 (A4Tech) is ALSO seen by Probe via All and passes through!
+            // 2. Unconfigured slot 2 (Razer) is ALSO seen by Probe via All and passes through!
             backend.ClearSent();
             await backend.InjectAndWaitAsync(2, KeyStroke("G", true));
             Assert.Equal("G:down", string.Join(",", backend.SnapshotSent().Select(DescribeKeyStroke)), "Unconfigured device passes through when Probe is passive");
@@ -391,7 +391,7 @@ internal static class HotkeySwitchTests
             var probeJson = TestHarness.GetWidgetJson(engine, "probe")!.Value;
             var lines = probeJson.GetProperty("lines").EnumerateArray().Select(l => l.GetProperty("device").GetString() ?? "").ToArray();
             Assert.True(lines.Any(d => d.Contains("Logitech")), "Probe should display friendly brand Logitech");
-            Assert.True(lines.Any(d => d.Contains("A4Tech")), "Probe should display friendly brand A4Tech for unconfigured slot 2");
+            Assert.True(lines.Any(d => d.Contains("Razer")), "Probe should display friendly brand Razer for unconfigured slot 2");
 
             // 3. Arm Probe -> blocks BOTH original LWin+D AND Hotkey Switch's LCtrl+X replacement!
             backend.ClearSent();
